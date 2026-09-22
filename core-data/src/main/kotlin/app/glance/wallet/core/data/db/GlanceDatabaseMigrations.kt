@@ -1,0 +1,79 @@
+package app.glance.wallet.core.data.db
+
+import androidx.room.migration.Migration
+
+/** The v1 baseline has no predecessor; all later schema changes must be added here and tested. */
+object GlanceDatabaseMigrations {
+    val MIGRATION_1_2 = object : Migration(1, 2) {
+        override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+            database.execSQL("ALTER TABLE derived_addresses ADD COLUMN lastStatus TEXT")
+        }
+    }
+    val MIGRATION_2_3 = object : Migration(2, 3) {
+        override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+            database.execSQL("ALTER TABLE watched_keys ADD COLUMN externalScannedThroughIndex INTEGER NOT NULL DEFAULT -1")
+            database.execSQL("ALTER TABLE watched_keys ADD COLUMN internalScannedThroughIndex INTEGER NOT NULL DEFAULT -1")
+        }
+    }
+    /** Existing address snapshots predate signed chart deltas and must be refreshed once. */
+    val MIGRATION_3_4 = object : Migration(3, 4) {
+        override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+            database.execSQL("UPDATE derived_addresses SET lastStatus = NULL WHERE isUsed = 1")
+        }
+    }
+    /** v4 could overwrite signed cached deltas with zero-value Electrum history; repair on next sync. */
+    val MIGRATION_4_5 = object : Migration(4, 5) {
+        override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+            database.execSQL("UPDATE derived_addresses SET lastStatus = NULL WHERE isUsed = 1")
+        }
+    }
+    /** v6 adds fixed-address watch targets; existing rows remain HD targets. */
+    val MIGRATION_5_6 = object : Migration(5, 6) {
+        override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+            database.execSQL("ALTER TABLE watched_keys ADD COLUMN targetType TEXT NOT NULL DEFAULT 'HD_KEY'")
+        }
+    }
+    /** v7 persists UTXO heights so confirmation counts can advance without re-downloading snapshots. */
+    val MIGRATION_6_7 = object : Migration(6, 7) {
+        override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+            database.execSQL("ALTER TABLE utxos ADD COLUMN blockHeight INTEGER")
+        }
+    }
+    /** v8 moves the UTXO presentation choice onto each watched wallet. */
+    val MIGRATION_7_8 = object : Migration(7, 8) {
+        override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+            database.execSQL("ALTER TABLE watched_keys ADD COLUMN utxoView TEXT")
+        }
+    }
+    /** v9 makes the dust cutoff independently configurable for every watched wallet. */
+    val MIGRATION_8_9 = object : Migration(8, 9) {
+        override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+            database.execSQL("ALTER TABLE watched_keys ADD COLUMN dustThresholdSats INTEGER NOT NULL DEFAULT 5000")
+        }
+    }
+    /** v10 adds optional multi-format wallet parents without changing existing imports. */
+    val MIGRATION_9_10 = object : Migration(9, 10) {
+        override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+            database.execSQL("CREATE TABLE IF NOT EXISTS `wallet_groups` (`id` TEXT NOT NULL, `label` TEXT NOT NULL, `dateAdded` INTEGER NOT NULL, `utxoView` TEXT NOT NULL, `dustThresholdSats` INTEGER NOT NULL DEFAULT 5000, `preferredReceiveScriptType` TEXT NOT NULL, PRIMARY KEY(`id`))")
+            database.execSQL("ALTER TABLE watched_keys ADD COLUMN walletGroupId TEXT")
+        }
+    }
+    /** v11 retains legacy history and marks its remote continuation unknown for on-demand paging. */
+    val MIGRATION_10_11 = object : Migration(10, 11) {
+        override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+            database.execSQL("ALTER TABLE derived_addresses ADD COLUMN historyRemoteCount INTEGER")
+            database.execSQL("ALTER TABLE derived_addresses ADD COLUMN historyNextCursor TEXT")
+            database.execSQL("ALTER TABLE derived_addresses ADD COLUMN historyComplete INTEGER NOT NULL DEFAULT 0")
+        }
+    }
+    /** v12 stores a lightweight balance for fixed addresses whose UTXO sets are too large to cache safely. */
+    val MIGRATION_11_12 = object : Migration(11, 12) {
+        override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+            database.execSQL("ALTER TABLE derived_addresses ADD COLUMN isUtxoSnapshotSuppressed INTEGER NOT NULL DEFAULT 0")
+            database.execSQL("ALTER TABLE derived_addresses ADD COLUMN cachedConfirmedBalanceSats INTEGER NOT NULL DEFAULT 0")
+            database.execSQL("ALTER TABLE derived_addresses ADD COLUMN cachedUnconfirmedBalanceSats INTEGER NOT NULL DEFAULT 0")
+            database.execSQL("ALTER TABLE derived_addresses ADD COLUMN unspentOutputCount INTEGER")
+        }
+    }
+    val ALL: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
+}

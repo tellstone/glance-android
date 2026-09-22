@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <!-- Onion service encryption is provided by Tor; this exception must never cover clearnet. -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">mempoolhqx4isw62xs7abwphsq7ldayuidyx2v2oethdhhj6mlo2r6ad.onion</domain>
+    </domain-config>
+</network-security-config>
