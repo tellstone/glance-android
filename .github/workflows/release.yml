@@ -55,10 +55,13 @@ jobs:
         if: vars.ZAPSTORE_PUBLISH_ENABLED == 'true'
         run: |
           grep -Eq '^pubkey: npub1[0-9a-z]+$' zapstore.yaml
-          "$(go env GOPATH)/bin/zsp" publish --check zapstore.yaml
+          zspPath="$(go env GOPATH)/bin/zsp"
+          "$zspPath" publish --check zapstore.yaml
       - name: Publish to Zapstore beta channel
         if: vars.ZAPSTORE_PUBLISH_ENABLED == 'true'
         env:
           SIGN_WITH: ${{ secrets.ZAPSTORE_BUNKER_URL }}
           GITHUB_TOKEN: ${{ github.token }}
-        run: "$(go env GOPATH)/bin/zsp" publish -y --channel beta --commit "$GITHUB_SHA" zapstore.yaml
+        run: |
+          zspPath="$(go env GOPATH)/bin/zsp"
+          "$zspPath" publish -y --channel beta --commit "$GITHUB_SHA" zapstore.yaml
