@@ -2,9 +2,9 @@
 # --- Build tooling ---
 agp = "9.4.1"
 kotlin = "2.3.21"
-compileSdk = "37"
+compileSdk = "36"
 minSdk = "24"
-targetSdk = "37"
+targetSdk = "36"
 
 # --- Compose / AndroidX ---
 composeBom = "2026.08.00"
