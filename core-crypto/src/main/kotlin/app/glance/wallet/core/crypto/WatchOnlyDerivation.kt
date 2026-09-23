@@ -4,6 +4,7 @@ import fr.acinq.bitcoin.Bitcoin
 import fr.acinq.bitcoin.Block
 import fr.acinq.bitcoin.Crypto
 import fr.acinq.bitcoin.DeterministicWallet
+import fr.acinq.bitcoin.MnemonicCode
 import fr.acinq.bitcoin.Script
 import fr.acinq.bitcoin.io.ByteArrayOutput
 
@@ -23,6 +24,43 @@ data class DerivedAddress(
     val index: Long,
     val address: String,
 )
+
+/**
+ * The sole private-key-adjacent primitive in Glance: it converts the isolated duress profile's
+ * generated BIP39 mnemonic into the public BIP84 account that the regular watch-only sync engine
+ * consumes. It does not expose private keys or signing operations.
+ */
+data class DuressBip84Wallet(
+    val accountExtendedPublicKey: String,
+    val watchOnlyKey: WatchOnlyKey,
+)
+
+fun duressBip84WalletFromEntropy(entropy: ByteArray): Pair<String, DuressBip84Wallet> {
+    require(entropy.size == BIP39_TWELVE_WORD_ENTROPY_BYTES) { "Duress entropy must be 128 bits" }
+    val mnemonic = MnemonicCode.toMnemonics(entropy).joinToString(" ")
+    return mnemonic to duressBip84Wallet(mnemonic)
+}
+
+fun duressBip84Wallet(mnemonic: String): DuressBip84Wallet {
+    val normalizedMnemonic = mnemonic.trim().lowercase()
+    require(normalizedMnemonic.split(Regex("\\s+")).size == BIP39_TWELVE_WORD_COUNT) {
+        "Duress mnemonic must contain twelve words"
+    }
+    MnemonicCode.validate(normalizedMnemonic)
+    val seed = MnemonicCode.toSeed(normalizedMnemonic, "")
+    val account = DeterministicWallet.generate(seed).derivePrivateKey(
+        listOf(
+            DeterministicWallet.hardened(ScriptType.NATIVE_SEGWIT.purpose),
+            DeterministicWallet.hardened(0),
+            DeterministicWallet.hardened(0),
+        ),
+    ).extendedPublicKey
+    val encoded = account.encode(DeterministicWallet.zpub)
+    return DuressBip84Wallet(encoded, WatchOnlyKey.fromSerialized(encoded, ScriptType.NATIVE_SEGWIT))
+}
+
+private const val BIP39_TWELVE_WORD_COUNT = 12
+private const val BIP39_TWELVE_WORD_ENTROPY_BYTES = 16
 
 /**
  * Parses an Add Watched Key import.

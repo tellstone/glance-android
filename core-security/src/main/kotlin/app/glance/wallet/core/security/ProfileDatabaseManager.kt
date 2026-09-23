@@ -12,56 +12,46 @@ import app.glance.wallet.core.data.db.UtxoEntity
 import app.glance.wallet.core.data.db.WatchedKeyEntity
 import app.glance.wallet.core.data.security.SqlCipherDatabaseFactory
 
-data class ProfileSession(val type: ProfileType, val database: GlanceDatabase, val fakeBalanceSats: Long? = null)
+data class ProfileSession(val type: ProfileType, val database: GlanceDatabase)
 
 /** Opens exactly one SQLCipher profile at a time, with independent Keystore-backed keys. */
-class ProfileDatabaseManager(private val context: Context) {
+class ProfileDatabaseManager(
+    private val context: Context,
+    private val duressWalletMaterialGenerator: DuressWalletMaterialGenerator = DuressWalletMaterialGenerator(),
+) {
     suspend fun open(type: ProfileType): ProfileSession {
         val name = if (type == ProfileType.REAL) REAL_DATABASE else DECOY_DATABASE
         val provider = AndroidKeystoreDatabaseKeyProvider(context, name.removeSuffix(".db"))
         val database = SqlCipherDatabaseFactory(context, provider).open(name)
-        val fakeBalance = if (type == ProfileType.DECOY) {
-            database.decoyProfileDao().findById(DECOY_PROFILE_ID)?.fakeBalanceSats ?: 0L
-        } else {
-            null
-        }
-        return ProfileSession(type, database, fakeBalance)
+        return ProfileSession(type, database)
     }
 
-    internal suspend fun configureDecoyBalance(sats: Long) {
-        require(sats >= 0)
+    internal suspend fun createDecoyWallet() {
+        val material = duressWalletMaterialGenerator.generate()
         val session = open(ProfileType.DECOY)
         try {
             session.database.withTransaction {
-                session.database.decoyProfileDao().upsert(DecoyProfileEntity(DECOY_PROFILE_ID, sats))
-                // A fresh duress store contains only synthetic records. Their values deliberately
-                // derive from the configured decoy total, never from the real profile.
-                val keyId = "synthetic-decoy-wallet"
-                if (session.database.watchedKeyDao().findById(keyId) == null) {
-                    session.database.watchedKeyDao().upsert(
-                        WatchedKeyEntity(keyId, "Travel savings", "synthetic", ScriptType.NATIVE_SEGWIT, 0L),
-                    )
-                }
-                val address = DerivedAddressEntity(keyId = keyId, chain = AddressChain.EXTERNAL, derivationIndex = 0,
-                    address = "bc1qsyntheticdecoywallet000000000000000000000", isUsed = true, isConfirmedUnused = false)
-                val addressId = session.database.derivedAddressDao().findByAddress(address.address)?.let { existing ->
-                    session.database.derivedAddressDao().update(address.copy(id = existing.id))
-                    existing.id
-                } ?: session.database.derivedAddressDao().upsert(address)
-                session.database.utxoDao().deleteForAddress(addressId)
-                session.database.addressHistoryDao().deleteForAddress(addressId)
-                session.database.utxoDao().upsertAll(listOf(UtxoEntity(addressId = addressId, txid = "synthetic-decoy-transaction", vout = 0, valueSats = sats, confirmations = 12)))
-                session.database.addressHistoryDao().upsertAll(listOf(AddressHistoryEntity(addressId = addressId, txid = "synthetic-decoy-transaction", confirmations = 12, blockHeight = null, valueSats = sats)))
+                session.database.decoyProfileDao().upsert(
+                    DecoyProfileEntity(DECOY_PROFILE_ID, material.mnemonic, material.accountExtendedPublicKey),
+                )
+                val keyId = DURESS_WALLET_KEY_ID
+                session.database.watchedKeyDao().upsert(
+                    WatchedKeyEntity(keyId, "Savings", material.accountExtendedPublicKey, ScriptType.NATIVE_SEGWIT, System.currentTimeMillis()),
+                )
+                session.database.derivedAddressDao().upsert(
+                    DerivedAddressEntity(keyId = keyId, chain = AddressChain.EXTERNAL, derivationIndex = 0,
+                        address = material.firstReceiveAddress, isUsed = false, isConfirmedUnused = false),
+                )
             }
         } finally {
             session.database.close()
         }
     }
 
-    internal suspend fun currentDecoyBalance(): Long? {
+    internal suspend fun decoyMnemonic(): String? {
         val session = open(ProfileType.DECOY)
         return try {
-            session.database.decoyProfileDao().findById(DECOY_PROFILE_ID)?.fakeBalanceSats
+            session.database.decoyProfileDao().findById(DECOY_PROFILE_ID)?.mnemonic
         } finally {
             session.database.close()
         }
@@ -90,5 +80,6 @@ class ProfileDatabaseManager(private val context: Context) {
         const val REAL_DATABASE = "glance-wallet.db"
         const val DECOY_DATABASE = "glance-decoy.db"
         const val DECOY_PROFILE_ID = "configured"
+        const val DURESS_WALLET_KEY_ID = "duress-bip84-wallet"
     }
 }

@@ -454,14 +454,30 @@ internal fun Phase7Wallet(
     }
 }
 
-/** Deliberately offline: this surface reads only the decoy SQLCipher database. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun DecoyPhase7Wallet(database: GlanceDatabase, fakeBalance: Long, authentication: AuthenticationCoordinator) {
+internal fun DecoyPhase7Wallet(session: ProfileSession, authentication: AuthenticationCoordinator, torController: TorController) {
+    val database = session.database
+    val app = LocalContext.current.applicationContext as GlanceApplication
+    val scope = rememberCoroutineScope()
+    val torState by torController.state.collectAsState()
+    val syncCoordinator = remember(database) { WalletSyncCoordinator { app.networkClients.syncEngine(RoomWalletSyncStore(database)).syncAll() } }
+    DisposableEffect(syncCoordinator) {
+        app.registerSyncCoordinator(syncCoordinator)
+        onDispose { app.unregisterSyncCoordinator(syncCoordinator) }
+    }
+    LaunchedEffect(torState) { syncCoordinator.requestSync(torEnabled = true, torState = torState, offlineMode = false) }
+    val syncState by syncCoordinator.state.collectAsState()
     val keys by database.walletScreenDao().observeKeyBalances().collectAsState(emptyList())
+    val balance by database.utxoDao().observeConfirmedBalance().collectAsState(0L)
     var detail by remember { mutableStateOf(false) }
     var transactionDetailId by remember { mutableStateOf<Long?>(null) }
     var receiveKeyId by remember { mutableStateOf<String?>(null) }
+    var settings by remember { mutableStateOf(false) }
+    var revealPhrase by remember { mutableStateOf(false) }
+    val mnemonic by produceState<String?>(null, settings, revealPhrase) {
+        value = if (settings && revealPhrase) authentication.currentDecoyMnemonic() else null
+    }
     transactionDetailId?.let { historyId ->
         TransactionDetailScreen(database, historyId, ExplorerPreset.MEMPOOL_SPACE) { transactionDetailId = null }
         return
@@ -470,14 +486,26 @@ internal fun DecoyPhase7Wallet(database: GlanceDatabase, fakeBalance: Long, auth
         ReceiveScreen(database, keyId) { receiveKeyId = null }
         return
     }
-    if (detail) {
-        val key = keys.firstOrNull()
-        if (key != null) KeyDetailScreen(database, key.id, UtxoView.BUBBLES, WalletSyncState.Idle, onRefresh = {}, onBack = { detail = false }, onTransaction = { transactionDetailId = it }, onReceive = { receiveKeyId = key.id }) else detail = false
+    if (settings) {
+        Scaffold(topBar = { BackBar("Wallet settings", { settings = false; revealPhrase = false }) }) { padding ->
+            Column(Modifier.fillMaxSize().padding(padding).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text("Recovery phrase", style = MaterialTheme.typography.titleMedium)
+                Text("This automatically generated decoy wallet is not intended to receive funds.", color = GlanceMuted, style = MaterialTheme.typography.bodySmall)
+                if (revealPhrase) Text(mnemonic ?: "Phrase unavailable", modifier = Modifier.testTag("duress_recovery_phrase"), style = MaterialTheme.typography.bodyMedium)
+                else Button(onClick = { revealPhrase = true }, modifier = Modifier.testTag("reveal_duress_recovery_phrase")) { Text("Reveal recovery phrase") }
+            }
+        }
         return
     }
-    Scaffold(topBar = { TopAppBar(title = { Text("Glance") }) }) { padding ->
+    if (detail) {
+        val key = keys.firstOrNull()
+        if (key != null) KeyDetailScreen(database, key.id, UtxoView.BUBBLES, syncState, onRefresh = { scope.launch { syncCoordinator.requestSync(true, torState) } }, onBack = { detail = false }, onTransaction = { transactionDetailId = it }, onReceive = { receiveKeyId = key.id }) else detail = false
+        return
+    }
+    Scaffold(topBar = { TopAppBar(title = { Text("Glance") }, actions = { IconButton(onClick = { settings = true }) { Icon(Icons.Filled.Settings, contentDescription = "Wallet settings") } }) }) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            item { AmountText(fakeBalance, Modifier.testTag("decoy_balance"), large = true) }
+            item { AmountText(balance, Modifier.testTag("decoy_balance"), large = true) }
+            if (syncState != WalletSyncState.Succeeded) item { WalletSyncStatus(syncState) { scope.launch { syncCoordinator.requestSync(true, torState) } } }
             item { Text("Watch targets", style = MaterialTheme.typography.titleMedium) }
             items(keys, key = { it.id }) { key -> ListItem(headlineContent = { Text(key.label) }, supportingContent = { Text(if (key.targetType == WatchTargetType.SINGLE_ADDRESS) "Single address" else "Native SegWit", color = GlanceMuted) }, trailingContent = { AmountText(key.balanceSats) }, modifier = Modifier.clickable { detail = true }) }
             item { OutlinedButton(onClick = authentication::lock, modifier = Modifier.fillMaxWidth()) { Text("Lock") } }
@@ -2196,16 +2224,9 @@ internal fun Phase7SettingsContent(
     var eraseConfirmation by remember { mutableStateOf(false) }
     var removeDuressConfirmation by remember { mutableStateOf(false) }
     var setupDuress by remember { mutableStateOf(false) }
-    var decoyBalance by remember { mutableStateOf("") }
-    var decoyBalanceSaving by remember { mutableStateOf(false) }
-    var decoyBalanceError by remember { mutableStateOf<String?>(null) }
     var currencyExpanded by remember { mutableStateOf(false) }
     var explorerExpanded by remember { mutableStateOf(false) }
     var duressExpanded by remember { mutableStateOf(false) }
-
-    LaunchedEffect(settings.credentials?.duressPinVerifier) {
-        decoyBalance = authentication.currentDecoyBalance()?.toString().orEmpty()
-    }
 
     Scaffold(containerColor = GlanceBackground, topBar = { BackBar("Settings", onBack) }) { padding ->
         LazyColumn(
@@ -2241,12 +2262,13 @@ internal fun Phase7SettingsContent(
                 if (duressExpanded) SettingsDivider()
             } }
             if (duressExpanded) {
-            item { Text("Set the static decoy balance shown after the duress PIN unlocks. This profile remains separate from your wallet.", color = GlanceMuted, style = MaterialTheme.typography.bodySmall) }
+            item { Text("Creates an isolated, automatically generated Native SegWit decoy wallet. Its real balance, history, and UTXOs sync through Tor only.", color = GlanceMuted, style = MaterialTheme.typography.bodySmall) }
             item { DuressForensicLimitationNotice() }
             if (settings.credentials?.duressPinVerifier == null) {
                 item { Text("Not activated", color = GlanceMuted, modifier = Modifier.testTag("duress_not_activated")) }
                 item { Button(onClick = { setupDuress = true }, shape = settingsActionButtonShape, colors = ButtonDefaults.buttonColors(containerColor = GlanceMandarin, contentColor = GlanceBackground), modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("Set up duress profile") } }
             } else {
+                /* Legacy synthetic-balance controls are intentionally unavailable for real decoy wallets.
                 item { OutlinedTextField(decoyBalance, { decoyBalance = it.filter(Char::isDigit) }, label = { Text("Decoy balance (sats)") }, singleLine = true, modifier = Modifier.fillMaxWidth()) }
                 val decoySats = decoyBalance.toLongOrNull()
                 item {
@@ -2270,6 +2292,7 @@ internal fun Phase7SettingsContent(
                     ) { Text(if (decoyBalanceSaving) "Saving…" else "Save decoy balance") }
                 }
                 decoyBalanceError?.let { error -> item { Text(error, color = GlanceWarning) } }
+                */
                 item { OutlinedButton(onClick = { removeDuressConfirmation = true }, modifier = Modifier.fillMaxWidth().testTag("remove_duress_profile")) { Text("Remove duress profile") } }
             }
             }
@@ -2279,11 +2302,10 @@ internal fun Phase7SettingsContent(
         }
     }
     if (eraseConfirmation) AlertDialog(onDismissRequest = { eraseConfirmation = false }, containerColor = GlanceSurface, titleContentColor = GlanceText, textContentColor = GlanceMuted, title = { Text("Erase all data?") }, text = { Text("This permanently deletes both encrypted wallet profiles, security settings, local cached data, and cached Tor state. This cannot be undone.") }, confirmButton = { Button(onClick = { scope.launch { authentication.eraseAllData() } }, shape = settingsActionButtonShape, colors = ButtonDefaults.buttonColors(containerColor = GlanceWarning, contentColor = GlanceText)) { Text("Erase permanently") } }, dismissButton = { TextButton(onClick = { eraseConfirmation = false }, colors = ButtonDefaults.textButtonColors(contentColor = GlanceText)) { Text("Cancel") } })
-    if (removeDuressConfirmation) AlertDialog(onDismissRequest = { removeDuressConfirmation = false }, containerColor = GlanceSurface, titleContentColor = GlanceText, textContentColor = GlanceMuted, title = { Text("Remove duress profile?") }, text = { Text("This permanently deletes the duress PIN, decoy database, and fake balance. Your real wallet remains unchanged.") }, confirmButton = { Button(onClick = { removeDuressConfirmation = false; scope.launch { authentication.removeDuressProfile(); decoyBalance = "" } }, shape = settingsActionButtonShape, colors = ButtonDefaults.buttonColors(containerColor = GlanceWarning, contentColor = GlanceText)) { Text("Remove permanently") } }, dismissButton = { TextButton(onClick = { removeDuressConfirmation = false }, colors = ButtonDefaults.textButtonColors(contentColor = GlanceText)) { Text("Cancel") } })
-    if (setupDuress) DuressSetupDialog(onDismiss = { setupDuress = false }) { pin, balance ->
-        authentication.configureDuress(pin, balance)
+    if (removeDuressConfirmation) AlertDialog(onDismissRequest = { removeDuressConfirmation = false }, containerColor = GlanceSurface, titleContentColor = GlanceText, textContentColor = GlanceMuted, title = { Text("Remove duress profile?") }, text = { Text("This permanently deletes the duress PIN, generated recovery phrase, encrypted decoy database, and wallet history. Your real wallet remains unchanged.") }, confirmButton = { Button(onClick = { removeDuressConfirmation = false; scope.launch { authentication.removeDuressProfile() } }, shape = settingsActionButtonShape, colors = ButtonDefaults.buttonColors(containerColor = GlanceWarning, contentColor = GlanceText)) { Text("Remove permanently") } }, dismissButton = { TextButton(onClick = { removeDuressConfirmation = false }, colors = ButtonDefaults.textButtonColors(contentColor = GlanceText)) { Text("Cancel") } })
+    if (setupDuress) DuressSetupDialog(onDismiss = { setupDuress = false }) { pin ->
+        authentication.configureDuress(pin)
         setupDuress = false
-        decoyBalance = balance.toString()
     }
 }
 

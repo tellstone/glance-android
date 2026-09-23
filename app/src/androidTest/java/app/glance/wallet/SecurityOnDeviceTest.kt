@@ -93,9 +93,9 @@ class SecurityOnDeviceTest {
 
         val decoy = profiles.open(ProfileType.DECOY).database
         try {
-            decoy.decoyProfileDao().upsert(DecoyProfileEntity(ProfileDatabaseManager.DECOY_PROFILE_ID, 50_000L))
+            decoy.decoyProfileDao().upsert(DecoyProfileEntity(ProfileDatabaseManager.DECOY_PROFILE_ID, "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about", "redacted-zpub"))
             assertEquals(null, decoy.watchedKeyDao().findById("real"))
-            assertEquals(50_000L, decoy.decoyProfileDao().findById(ProfileDatabaseManager.DECOY_PROFILE_ID)?.fakeBalanceSats)
+            assertEquals("redacted-zpub", decoy.decoyProfileDao().findById(ProfileDatabaseManager.DECOY_PROFILE_ID)?.accountExtendedPublicKey)
         } finally {
             decoy.close()
         }
@@ -119,7 +119,7 @@ class SecurityOnDeviceTest {
         assertTrue(failure is SecurityException)
         val decoy = profiles.open(ProfileType.DECOY)
         try {
-            assertEquals(50_000L, decoy.fakeBalanceSats)
+            assertNotNull(decoy.database.decoyProfileDao().findById(ProfileDatabaseManager.DECOY_PROFILE_ID)?.mnemonic)
         } finally {
             decoy.database.close()
             authentication.lock()
@@ -142,7 +142,7 @@ class SecurityOnDeviceTest {
             val key = requireNotNull(decoy.watchedKeyDao().findById("synthetic-decoy-wallet"))
             val addresses = decoy.derivedAddressDao().forKey(key.id).first()
             assertEquals(1, addresses.size)
-            assertEquals(125_000L, decoy.decoyProfileDao().findById(ProfileDatabaseManager.DECOY_PROFILE_ID)?.fakeBalanceSats)
+            assertNotNull(decoy.decoyProfileDao().findById(ProfileDatabaseManager.DECOY_PROFILE_ID)?.mnemonic)
             assertEquals(125_000L, decoy.utxoDao().forAddress(addresses.single().id).first().single().valueSats)
             assertEquals(125_000L, decoy.addressHistoryDao().forAddress(addresses.single().id).first().single().valueSats)
         } finally {
@@ -235,7 +235,7 @@ class SecurityOnDeviceTest {
         authentication.configureDuress("111222", 75_000L)
         authentication.lock()
         assertTrue(authentication.unlockWithPin("111222", 0L) is AuthenticationState.Unlocked)
-        assertEquals(75_000L, (authentication.state.value as AuthenticationState.Unlocked).session.fakeBalanceSats)
+        assertNotNull((authentication.state.value as AuthenticationState.Unlocked).session.database.decoyProfileDao().findById(ProfileDatabaseManager.DECOY_PROFILE_ID)?.mnemonic)
         authentication.lock()
         assertTrue(authentication.unlockWithPin("654321", 0L) is AuthenticationState.Throttled)
     }

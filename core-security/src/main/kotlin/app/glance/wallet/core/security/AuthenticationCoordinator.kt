@@ -98,18 +98,7 @@ class AuthenticationCoordinator(
         return unlockOrRequireRecovery(ProfileType.REAL, generation)
     }
 
-    /** Decoy presentation data is configurable only while the real profile is open. */
-    suspend fun configureDecoyBalance(sats: Long) {
-        val session = (mutableState.value as? AuthenticationState.Unlocked)?.session
-            ?: throw SecurityException("Unlock the real profile before configuring the decoy balance.")
-        if (session.type != ProfileType.REAL) {
-            throw SecurityException("The decoy profile cannot configure its displayed balance.")
-        }
-        profiles.configureDecoyBalance(sats)
-    }
-
-    suspend fun configureDuress(duressPin: String, fakeBalanceSats: Long) {
-        require(fakeBalanceSats >= 0) { "Decoy balance must not be negative." }
+    suspend fun configureDuress(duressPin: String) {
         val session = (mutableState.value as? AuthenticationState.Unlocked)?.session
             ?: throw SecurityException("Unlock the real profile before configuring the duress profile.")
         if (session.type != ProfileType.REAL) {
@@ -126,12 +115,22 @@ class AuthenticationCoordinator(
         profiles.deleteDecoy()
         provisionDecoyAtomically(
             provision = {
-                profiles.configureDecoyBalance(fakeBalanceSats)
+                profiles.createDecoyWallet()
                 preferences.update { it.copy(credentials = credentials.copy(duressPinVerifier = verifier)) }
             },
             rollback = profiles::deleteDecoy,
         )
     }
+
+    @Deprecated("Synthetic duress balances are no longer supported")
+    suspend fun configureDuress(duressPin: String, @Suppress("UNUSED_PARAMETER") fakeBalanceSats: Long) = configureDuress(duressPin)
+
+    @Deprecated("Synthetic duress balances are no longer supported")
+    suspend fun configureDecoyBalance(@Suppress("UNUSED_PARAMETER") sats: Long): Nothing =
+        throw SecurityException("Synthetic duress balances are no longer supported.")
+
+    @Deprecated("Synthetic duress balances are no longer supported")
+    suspend fun currentDecoyBalance(): Long? = null
 
     suspend fun removeDuressProfile() {
         val session = (mutableState.value as? AuthenticationState.Unlocked)?.session
@@ -146,9 +145,9 @@ class AuthenticationCoordinator(
         preferences.update { it.copy(credentials = it.credentials?.copy(duressPinVerifier = null), duressRemovalPending = false) }
     }
 
-    suspend fun currentDecoyBalance(): Long? =
-        if ((mutableState.value as? AuthenticationState.Unlocked)?.session?.type == ProfileType.REAL) {
-            profiles.currentDecoyBalance()
+    suspend fun currentDecoyMnemonic(): String? =
+        if ((mutableState.value as? AuthenticationState.Unlocked)?.session?.type == ProfileType.DECOY) {
+            profiles.decoyMnemonic()
         } else null
 
     fun lock() {

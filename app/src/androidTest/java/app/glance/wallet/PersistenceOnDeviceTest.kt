@@ -52,7 +52,7 @@ class PersistenceOnDeviceTest {
         database.labelDao().upsert(LabelEntity(LabelReferenceType.TRANSACTION, "history", "Coffee"))
         database.serverConfigDao().upsert(ServerConfigEntity("server", "electrum", "example.invalid", 50002, true, true))
         database.fiatPriceCacheDao().upsert(FiatPriceCacheEntity(provider = "mempool_space", currency = "EUR", timestamp = 1000, price = 1.0))
-        database.decoyProfileDao().upsert(DecoyProfileEntity("decoy", 50_000_000))
+        database.decoyProfileDao().upsert(DecoyProfileEntity("decoy", "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about", "redacted-zpub"))
 
         assertEquals(1, database.addressHistoryDao().forAddress(firstAddressId).first().size)
         assertEquals(1, database.utxoDao().forAddress(firstAddressId).first().size)
@@ -60,7 +60,7 @@ class PersistenceOnDeviceTest {
         assertEquals("Coffee", database.labelDao().find(LabelReferenceType.TRANSACTION, "history")?.text)
         assertEquals(1, database.serverConfigDao().observeAll().first().size)
         assertEquals(1, database.fiatPriceCacheDao().forProviderAndCurrency("mempool_space", "EUR").size)
-        assertEquals(50_000_000L, database.decoyProfileDao().findById("decoy")?.fakeBalanceSats)
+        assertEquals("redacted-zpub", database.decoyProfileDao().findById("decoy")?.accountExtendedPublicKey)
 
         database.watchedKeyDao().deleteById(first.id)
         assertEquals(0, database.derivedAddressDao().forKey(first.id).first().size)

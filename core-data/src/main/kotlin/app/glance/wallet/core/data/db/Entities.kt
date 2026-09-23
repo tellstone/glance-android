@@ -168,9 +168,10 @@ data class FiatPriceCacheEntity(
     val price: Double,
 )
 
-/** The configured display balance for the separately encrypted decoy profile. */
+/** Private decoy-only metadata, protected by the profile's independent SQLCipher key. */
 @Entity(tableName = "decoy_profiles")
 data class DecoyProfileEntity(
     @PrimaryKey val id: String,
-    val fakeBalanceSats: Long,
+    val mnemonic: String,
+    val accountExtendedPublicKey: String,
 )

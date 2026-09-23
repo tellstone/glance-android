@@ -75,5 +75,12 @@ object GlanceDatabaseMigrations {
             database.execSQL("ALTER TABLE derived_addresses ADD COLUMN unspentOutputCount INTEGER")
         }
     }
-    val ALL: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
+    /** Synthetic decoys cannot safely become real wallets, so their legacy metadata is discarded. */
+    val MIGRATION_12_13 = object : Migration(12, 13) {
+        override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+            database.execSQL("DROP TABLE IF EXISTS decoy_profiles")
+            database.execSQL("CREATE TABLE IF NOT EXISTS `decoy_profiles` (`id` TEXT NOT NULL, `mnemonic` TEXT NOT NULL, `accountExtendedPublicKey` TEXT NOT NULL, PRIMARY KEY(`id`))")
+        }
+    }
+    val ALL: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
 }

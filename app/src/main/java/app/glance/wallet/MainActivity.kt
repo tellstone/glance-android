@@ -87,7 +87,7 @@ class MainActivity : FragmentActivity() {
                 val loadedSettings = settings ?: return@LaunchedEffect
                 when ((authState as? AuthenticationState.Unlocked)?.session?.type) {
                     ProfileType.REAL -> (application as GlanceApplication).setNetworkSessionActive(true, loadedSettings.torEnabled, loadedSettings.offlineMode)
-                    ProfileType.DECOY -> (application as GlanceApplication).setNetworkSessionActive(false, loadedSettings.torEnabled, loadedSettings.offlineMode)
+                    ProfileType.DECOY -> (application as GlanceApplication).setDuressNetworkSessionActive(true)
                     null -> Unit // Pre-PIN Tor bootstrap is intentionally kept alive; no network work is scheduled.
                 }
             }
@@ -168,7 +168,7 @@ internal fun TorBootstrapScreen() = Box(
     AuthenticationState.RecoveryRequired -> DatabaseRecovery(authentication)
     AuthenticationState.EraseIncomplete -> DatabaseRecovery(authentication, eraseIncomplete = true)
     is AuthenticationState.Unlocked -> if (state.session.type == ProfileType.DECOY) {
-        DecoyPhase7Wallet(state.session.database, state.session.fakeBalanceSats ?: 0L, authentication)
+        DecoyPhase7Wallet(state.session, authentication, torController)
     } else {
         Phase7Wallet(state.session, settings, preferences, authentication, torController)
     }
@@ -486,10 +486,9 @@ internal fun keypadRows(scramble: Boolean, unlockLayout: Boolean = true, random:
     if (eraseConfirmation) AlertDialog(onDismissRequest = { eraseConfirmation = false }, title = { Text("Erase all data?") }, text = { Text("This permanently deletes both encrypted wallet profiles, security settings, local cached data, and cached Tor state. This cannot be undone.") }, confirmButton = { Button(onClick = { scope.launch { authentication.eraseAllData() } }, colors = ButtonDefaults.buttonColors(containerColor = GlanceWarning)) { Text("Erase permanently") } }, dismissButton = { OutlinedButton(onClick = { eraseConfirmation = false }) { Text("Cancel") } })
     if (torOffWarning) AlertDialog(onDismissRequest = { torOffWarning = false }, title = { Text("Turn off Tor?") }, text = { Text("The querying server will see your device's real IP address. Continue only if you accept this privacy risk.") }, confirmButton = { Button(onClick = { torOffWarning = false; scope.launch { preferences.update { it.copy(torEnabled = false) } } }, colors = ButtonDefaults.buttonColors(containerColor = GlanceWarning)) { Text("Turn off Tor") } }, dismissButton = { OutlinedButton(onClick = { torOffWarning = false }) { Text("Keep Tor on") } })
     if (removeDuressConfirmation) AlertDialog(onDismissRequest = { removeDuressConfirmation = false }, title = { Text("Remove duress profile?") }, text = { Text("This permanently deletes the duress PIN, decoy database, and fake balance. Your real wallet remains unchanged.") }, confirmButton = { Button(onClick = { removeDuressConfirmation = false; scope.launch { authentication.removeDuressProfile(); decoyBalance = "" } }, colors = ButtonDefaults.buttonColors(containerColor = GlanceWarning)) { Text("Remove permanently") } }, dismissButton = { OutlinedButton(onClick = { removeDuressConfirmation = false }) { Text("Cancel") } })
-    if (setupDuress) DuressSetupDialog(onDismiss = { setupDuress = false }) { pin, balance ->
-        authentication.configureDuress(pin, balance)
+    if (setupDuress) DuressSetupDialog(onDismiss = { setupDuress = false }) { pin ->
+        authentication.configureDuress(pin)
         setupDuress = false
-        decoyBalance = balance.toString()
     }
 }
 
@@ -535,12 +534,11 @@ private fun LegacyDuressSetupDialog(onDismiss: () -> Unit, onConfigured: suspend
 }
 
 @Composable
-internal fun DuressSetupDialog(onDismiss: () -> Unit, onConfigured: suspend (String, Long) -> Unit) {
+internal fun DuressSetupDialog(onDismiss: () -> Unit, onConfigured: suspend (String) -> Unit) {
     val scope = rememberCoroutineScope()
     var step by remember { mutableStateOf(0) }
     var pin by remember { mutableStateOf("") }
     var confirmation by remember { mutableStateOf("") }
-    var balance by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     var creating by remember { mutableStateOf(false) }
 
@@ -556,30 +554,19 @@ internal fun DuressSetupDialog(onDismiss: () -> Unit, onConfigured: suspend (Str
             error?.let { Text(it, color = GlanceWarning, modifier = Modifier.padding(top = 12.dp)) }
             OutlinedButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) { Text("Cancel") }
         }
-        else -> PinEntryPage("Duress balance", "Set the static decoy balance in sats.") {
-            OutlinedTextField(
-                value = balance,
-                onValueChange = { balance = it.filter(Char::isDigit) },
-                label = { Text("Balance (sats)") },
-                singleLine = true,
-                enabled = !creating,
-                modifier = Modifier.fillMaxWidth().testTag("duress_balance"),
-            )
+        else -> PinEntryPage("Create duress wallet", "A fresh 12-word Native SegWit decoy wallet will be generated. It is not intended to receive funds.") {
             Button(
                 onClick = {
-                    val sats = balance.toLongOrNull()
-                    if (sats == null) error = "Enter a valid balance." else {
-                        creating = true
-                        error = null
-                        scope.launch {
-                            try { onConfigured(pin, sats) } catch (failure: Throwable) {
-                                if (failure is kotlinx.coroutines.CancellationException) throw failure
-                                error = "Unable to create the duress profile. Try again."
-                            } finally { creating = false }
-                        }
+                    creating = true
+                    error = null
+                    scope.launch {
+                        try { onConfigured(pin) } catch (failure: Throwable) {
+                            if (failure is kotlinx.coroutines.CancellationException) throw failure
+                            error = "Unable to create the duress profile. Try again."
+                        } finally { creating = false }
                     }
                 },
-                enabled = !creating && balance.isNotEmpty(),
+                enabled = !creating,
                 colors = ButtonDefaults.buttonColors(containerColor = GlanceMandarin),
                 modifier = Modifier.fillMaxWidth().padding(top = 16.dp).testTag("duress_create_profile"),
             ) { Text("Create profile") }

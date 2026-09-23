@@ -59,6 +59,24 @@ class GlanceApplication : Application() {
         }
     }
 
+    /** A duress profile may reconcile only through Tor and never refresh the server directory. */
+    fun setDuressNetworkSessionActive(active: Boolean) {
+        if (active) {
+            networkShutdownJob?.cancel()
+            networkShutdownJob = null
+            serverDirectoryJob?.cancel()
+            serverDirectoryJob = null
+            applicationScope.launch {
+                torController.setOffline(false)
+                torController.setEnabled(true)
+            }
+        } else {
+            synchronized(syncCoordinators) { syncCoordinators.toList() }.forEach(WalletSyncCoordinator::cancel)
+            networkShutdownJob?.cancel()
+            networkShutdownJob = applicationScope.launch { torController.stopForInactiveSession() }
+        }
+    }
+
     fun registerSyncCoordinator(coordinator: WalletSyncCoordinator) = synchronized(syncCoordinators) { syncCoordinators += coordinator }
     fun unregisterSyncCoordinator(coordinator: WalletSyncCoordinator) = synchronized(syncCoordinators) { syncCoordinators -= coordinator }
 

@@ -133,7 +133,7 @@ class PinSetupTest {
         var submissions = 0
         composeRule.setContent {
             GlanceTheme {
-                DuressSetupDialog(onDismiss = {}) { _, _ ->
+                DuressSetupDialog(onDismiss = {}) { _ ->
                     submissions += 1
                     creationStarted.complete(Unit)
                     allowCreationToFinish.await()
@@ -144,7 +144,6 @@ class PinSetupTest {
         composeRule.onNodeWithTag("pin_keypad").assertWidthIsEqualTo(280.dp)
         enterPin("654321")
         enterPin("654321")
-        composeRule.onNodeWithTag("duress_balance").performTextInput("50000")
         composeRule.onNodeWithTag("duress_create_profile").performClick()
 
         runBlocking { creationStarted.await() }
@@ -159,13 +158,12 @@ class PinSetupTest {
     fun duressSetupShowsRetryableErrorWhenCreationFails() {
         composeRule.setContent {
             GlanceTheme {
-                DuressSetupDialog(onDismiss = {}) { _, _ -> error("creation interrupted") }
+                DuressSetupDialog(onDismiss = {}) { _ -> error("creation interrupted") }
             }
         }
 
         enterPin("654321")
         enterPin("654321")
-        composeRule.onNodeWithTag("duress_balance").performTextInput("50000")
         composeRule.onNodeWithTag("duress_create_profile").performClick()
 
         composeRule.waitForIdle()

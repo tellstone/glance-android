@@ -14,6 +14,7 @@ android {
 dependencies {
     implementation(project(":core-common"))
     implementation(project(":core-data"))
+    implementation(project(":core-crypto"))
     implementation(libs.androidx.biometric)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.datastore.tink)

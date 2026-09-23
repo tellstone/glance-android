@@ -20,7 +20,7 @@ import androidx.room.TypeConverters
         DecoyProfileEntity::class,
         WalletGroupEntity::class,
     ],
-    version = 12,
+    version = 13,
     exportSchema = true,
 )
 @TypeConverters(GlanceDatabase.Converters::class)
