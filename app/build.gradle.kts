@@ -1,4 +1,36 @@
 import java.util.zip.ZipFile
+import org.gradle.api.DefaultTask
+import org.gradle.api.provider.Property
+import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.TaskAction
+
+abstract class VerifyReleaseConfiguration : DefaultTask() {
+    @get:Input abstract val storeFilePath: Property<String>
+    @get:Input abstract val storePassword: Property<String>
+    @get:Input abstract val keyAlias: Property<String>
+    @get:Input abstract val keyPassword: Property<String>
+    @get:Input abstract val donationOnChain: Property<String>
+    @get:Input abstract val donationLightning: Property<String>
+
+    @TaskAction
+    fun verify() {
+        val missingSigningInputs = listOf(
+            "GLANCE_RELEASE_STORE_FILE" to storeFilePath.get(),
+            "GLANCE_RELEASE_STORE_PASSWORD" to storePassword.get(),
+            "GLANCE_RELEASE_KEY_ALIAS" to keyAlias.get(),
+            "GLANCE_RELEASE_KEY_PASSWORD" to keyPassword.get(),
+        ).filter { (_, value) -> value.isBlank() }.map { it.first }
+        check(missingSigningInputs.isEmpty()) {
+            "Release signing is not configured; missing ${missingSigningInputs.joinToString()}."
+        }
+        check(!donationOnChain.get().contains("placeholder", ignoreCase = true)) {
+            "GLANCE_DONATION_ON_CHAIN must be a real public donation address."
+        }
+        check(!donationLightning.get().contains("placeholder", ignoreCase = true)) {
+            "GLANCE_DONATION_LIGHTNING must be a real public Lightning invoice or address."
+        }
+    }
+}
 
 val liveAddress = providers.environmentVariable("GLANCE_LIVE_ADDRESS").orNull
 val liveInstrumentationClass = providers.environmentVariable("GLANCE_LIVE_TEST_CLASS").orNull
@@ -6,6 +38,17 @@ val liveElectrumHost = providers.environmentVariable("GLANCE_LIVE_ELECTRUM_HOST"
 val liveElectrumPort = providers.environmentVariable("GLANCE_LIVE_ELECTRUM_PORT").orNull
 val liveElectrumTls = providers.environmentVariable("GLANCE_LIVE_ELECTRUM_TLS").orNull
 val liveEsploraBaseUrl = providers.environmentVariable("GLANCE_LIVE_ESPLORA_BASE_URL").orNull
+val configuredDonationOnChain = providers.environmentVariable("GLANCE_DONATION_ON_CHAIN").orNull
+    ?: "bc1qglanceplaceholderdonation"
+val configuredDonationLightning = providers.environmentVariable("GLANCE_DONATION_LIGHTNING").orNull
+    ?: "lnbc1placeholderdonation"
+val releaseStoreFile = providers.environmentVariable("GLANCE_RELEASE_STORE_FILE").orNull
+val releaseStorePassword = providers.environmentVariable("GLANCE_RELEASE_STORE_PASSWORD").orNull
+val releaseKeyAlias = providers.environmentVariable("GLANCE_RELEASE_KEY_ALIAS").orNull
+val releaseKeyPassword = providers.environmentVariable("GLANCE_RELEASE_KEY_PASSWORD").orNull
+
+fun String.asBuildConfigString(): String =
+    "\"${replace("\\", "\\\\").replace("\"", "\\\"")}\""
 
 plugins {
     alias(libs.plugins.android.application)
@@ -21,7 +64,9 @@ android {
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
         versionCode = 1
-        versionName = "1.0"
+        versionName = providers.gradleProperty("glanceVersionName").orElse("0.1.0-beta.1").get()
+        buildConfigField("String", "DONATION_ON_CHAIN", configuredDonationOnChain.asBuildConfigString())
+        buildConfigField("String", "DONATION_LIGHTNING", configuredDonationLightning.asBuildConfigString())
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         if (!liveAddress.isNullOrBlank()) {
@@ -50,6 +95,24 @@ android {
         release {
             optimization {
                 enable = true
+            }
+        }
+    }
+    signingConfigs {
+        if (
+            !releaseStoreFile.isNullOrBlank() &&
+            !releaseStorePassword.isNullOrBlank() &&
+            !releaseKeyAlias.isNullOrBlank() &&
+            !releaseKeyPassword.isNullOrBlank()
+        ) {
+            create("release") {
+                storeFile = file(releaseStoreFile)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+            buildTypes.named("release") {
+                signingConfig = signingConfigs.getByName("release")
             }
         }
     }
@@ -128,15 +191,19 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
 
-val releaseApk = layout.buildDirectory.file("outputs/apk/release/app-release-unsigned.apk")
+val releaseApkDirectory = layout.buildDirectory.dir("outputs/apk/release")
 
 tasks.register("verifyReleaseLoggingStripped") {
     group = "verification"
     description = "Fails when a release APK retains the debug Timber logging implementation."
     dependsOn("assembleRelease")
-    inputs.file(releaseApk)
+    inputs.dir(releaseApkDirectory)
     doLast {
-        val apk = inputs.files.singleFile
+        val apk = inputs.files.asFileTree.matching { include("*.apk") }.files
+            .sortedBy { it.name }
+            .firstOrNull { it.name == "app-release.apk" }
+            ?: inputs.files.asFileTree.matching { include("*.apk") }.files.singleOrNull()
+            ?: error("Release APK was not produced.")
         check(apk.isFile) { "Release APK was not produced." }
         val forbiddenTypes = listOf(
             "Ltimber/log/Timber;",
@@ -153,6 +220,17 @@ tasks.register("verifyReleaseLoggingStripped") {
             }
         }
     }
+}
+
+tasks.register<VerifyReleaseConfiguration>("verifyReleaseConfiguration") {
+    group = "verification"
+    description = "Fails when a CI release lacks signing or real public donation values."
+    storeFilePath.set(releaseStoreFile ?: "")
+    storePassword.set(releaseStorePassword ?: "")
+    keyAlias.set(releaseKeyAlias ?: "")
+    keyPassword.set(releaseKeyPassword ?: "")
+    this.donationOnChain.set(configuredDonationOnChain)
+    this.donationLightning.set(configuredDonationLightning)
 }
 
 tasks.named("check").configure { dependsOn("verifyReleaseLoggingStripped") }

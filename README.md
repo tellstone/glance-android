@@ -2,7 +2,7 @@
 
 Glance is an in-progress Android Bitcoin wallet for **watching** single-signature HD wallets. It is a Kotlin implementation with no private-key or seed storage, no transaction signing, and no transaction broadcasting.
 
-> **Project status:** Phase 7 (UI, design system, and charting) is in progress. Glance is not presented as production-ready software. Use only non-sensitive, disposable public wallet data while developing or testing it.
+> **Project status:** Glance is preparing its first public beta. It is not production-ready software. Use only non-sensitive, disposable public wallet data while developing or testing it, and independently verify all displayed wallet information before acting on it.
 
 ## What it supports
 
@@ -38,6 +38,12 @@ Connected Android tests require a device or emulator already visible to ADB:
 ```powershell
 .\gradlew.bat :app:connectedDebugAndroidTest
 ```
+
+## Beta releases
+
+Signed beta APKs are published as [GitHub Releases](https://github.com/tellstone/glance-android/releases) and, once publisher verification is complete, through Zapstore's beta channel. Verify the APK's adjacent SHA-256 checksum and Android signing certificate before installation. Releases are for Android 7.0+ (API 24+) and never contain private keys or seed phrases.
+
+To report an issue, include only redacted diagnostics. Never attach extended public keys, descriptors, addresses, transaction IDs, server credentials, PINs, or release-signing material.
 
 ## Repository layout
 

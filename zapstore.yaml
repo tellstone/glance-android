@@ -1,0 +1,21 @@
+# Add the maintainer's public Nostr identity before enabling Zapstore publishing.
+# Zapstore verifies this committed value during the one-time publisher allowlisting step.
+# pubkey: npub1replace_with_maintainer_public_identity
+repository: https://github.com/tellstone/glance-android
+name: Glance
+summary: A privacy-first, watch-only Bitcoin wallet for Android.
+description: |
+  Glance is a watch-only Android Bitcoin wallet for single-signature HD wallets.
+  It supports BIP44, BIP49, BIP84, BIP86, descriptors, and fixed mainnet addresses.
+
+  This is a beta release. It never imports private keys or seed phrases, signs
+  transactions, or broadcasts transactions. Network traffic uses Tor by default.
+tags:
+  - bitcoin
+  - wallet
+  - privacy
+  - watch-only
+license: MIT
+website: https://glancewallet.app
+match: "^glance-.*\\.apk$"
+release_notes: ./CHANGELOG.md

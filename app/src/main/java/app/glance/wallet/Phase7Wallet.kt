@@ -223,8 +223,8 @@ internal val qrBackgroundColor = GlanceText
 internal const val qrModuleColor = android.graphics.Color.BLACK
 
 internal enum class DonationMethod(val label: String, val payload: String) {
-    ON_CHAIN("On-chain", "bc1qglanceplaceholderdonation"),
-    LIGHTNING("Lightning", "lnbc1placeholderdonation"),
+    ON_CHAIN("On-chain", BuildConfig.DONATION_ON_CHAIN),
+    LIGHTNING("Lightning", BuildConfig.DONATION_LIGHTNING),
     ;
 
     companion object {
@@ -2331,7 +2331,7 @@ internal fun SupportScreen(onBack: () -> Unit) {
                     modifier = Modifier.fillMaxWidth().testTag("support_payload"),
                 )
             } else Text(
-                method.payload.take(10) + "…" + method.payload.takeLast(4) + " (placeholder)",
+                method.payload.take(10) + "…" + method.payload.takeLast(4),
                 color = GlanceMuted,
                 style = MaterialTheme.typography.labelSmall,
                 modifier = Modifier.testTag("support_payload"),
