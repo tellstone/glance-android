@@ -2,16 +2,16 @@
 # --- Build tooling ---
 agp = "9.4.1"
 kotlin = "2.3.21"
-compileSdk = "37"
+compileSdk = "36"
 minSdk = "24"
 targetSdk = "36"
 
 # --- Compose / AndroidX ---
-composeBom = "2026.08.00"
-activityCompose = "1.13.0"
+composeBom = "2025.05.00"
+activityCompose = "1.10.1"
 navigationCompose = "2.9.5"
-lifecycleCompose = "2.11.0"
-lifecycleRuntimeCompose = "2.11.0"
+lifecycleCompose = "2.9.0"
+lifecycleRuntimeCompose = "2.9.0"
 fragment = "1.8.9"
 
 # --- DI ---
@@ -22,15 +22,15 @@ bitcoinKmp = "0.31.0"
 secp256k1Kmp = "0.23.0"
 
 # --- Networking (core-network) ---
-okhttp = "5.5.0"
+okhttp = "4.12.0"
 kmpTorRuntime = "2.6.0"
 kmpTorResource = "409.5.0"
 serializationJson = "1.8.1"
 
 # --- Persistence (core-data) ---
 room = "2.8.4"
-sqlcipherAndroid = "4.18.0"
-androidxSqlite = "2.7.0"
+sqlcipherAndroid = "4.7.2"
+androidxSqlite = "2.5.0"
 
 # --- Security (core-security) ---
 biometric = "1.1.0"
