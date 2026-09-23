@@ -439,8 +439,6 @@ internal fun keypadRows(scramble: Boolean, unlockLayout: Boolean = true, random:
         Text("Glance", style = MaterialTheme.typography.headlineLarge)
         Text("Wallet balance", color = GlanceMuted)
         Text("$fakeBalanceSats sats", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.testTag("decoy_balance"))
-        Spacer(Modifier.weight(1f))
-        OutlinedButton(onClick = authentication::lock, modifier = Modifier.fillMaxWidth()) { Text("Lock now") }
     }
 }
 

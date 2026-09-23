@@ -487,14 +487,12 @@ internal fun DecoyPhase7Wallet(session: ProfileSession, authentication: Authenti
         return
     }
     if (settings) {
-        Scaffold(topBar = { BackBar("Wallet settings", { settings = false; revealPhrase = false }) }) { padding ->
-            Column(Modifier.fillMaxSize().padding(padding).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text("Recovery phrase", style = MaterialTheme.typography.titleMedium)
-                Text("This automatically generated decoy wallet is not intended to receive funds.", color = GlanceMuted, style = MaterialTheme.typography.bodySmall)
-                if (revealPhrase) Text(mnemonic ?: "Phrase unavailable", modifier = Modifier.testTag("duress_recovery_phrase"), style = MaterialTheme.typography.bodyMedium)
-                else Button(onClick = { revealPhrase = true }, modifier = Modifier.testTag("reveal_duress_recovery_phrase")) { Text("Reveal recovery phrase") }
-            }
-        }
+        DecoySettingsContent(
+            revealPhrase = revealPhrase,
+            mnemonic = mnemonic,
+            onBack = { settings = false; revealPhrase = false },
+            onRevealPhrase = { revealPhrase = true },
+        )
         return
     }
     if (detail) {
@@ -502,13 +500,73 @@ internal fun DecoyPhase7Wallet(session: ProfileSession, authentication: Authenti
         if (key != null) KeyDetailScreen(database, key.id, UtxoView.BUBBLES, syncState, onRefresh = { scope.launch { syncCoordinator.requestSync(true, torState) } }, onBack = { detail = false }, onTransaction = { transactionDetailId = it }, onReceive = { receiveKeyId = key.id }) else detail = false
         return
     }
-    Scaffold(topBar = { TopAppBar(title = { Text("Glance") }, actions = { IconButton(onClick = { settings = true }) { Icon(Icons.Filled.Settings, contentDescription = "Wallet settings") } }) }) { padding ->
+    Scaffold(containerColor = GlanceBackground) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            item { AmountText(balance, Modifier.testTag("decoy_balance"), large = true) }
+            item {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Glance", color = GlanceText, style = MaterialTheme.typography.titleLarge)
+                    Spacer(Modifier.weight(1f))
+                    IconButton(onClick = { settings = true }) { Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = GlanceText) }
+                }
+            }
+            item { Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { AmountText(balance, Modifier.testTag("decoy_balance"), large = true) } }
             if (syncState != WalletSyncState.Succeeded) item { WalletSyncStatus(syncState) { scope.launch { syncCoordinator.requestSync(true, torState) } } }
-            item { Text("Watch targets", style = MaterialTheme.typography.titleMedium) }
-            items(keys, key = { it.id }) { key -> ListItem(headlineContent = { Text(key.label) }, supportingContent = { Text(if (key.targetType == WatchTargetType.SINGLE_ADDRESS) "Single address" else "Native SegWit", color = GlanceMuted) }, trailingContent = { AmountText(key.balanceSats) }, modifier = Modifier.clickable { detail = true }) }
-            item { OutlinedButton(onClick = authentication::lock, modifier = Modifier.fillMaxWidth()) { Text("Lock") } }
+            item { Text("Watched keys", color = GlanceMuted, style = MaterialTheme.typography.labelMedium) }
+            items(keys, key = { it.id }) { key ->
+                Surface(
+                    color = GlanceSurface,
+                    shape = GlanceCardShape,
+                    modifier = Modifier.fillMaxWidth().clickable { detail = true }.testTag("decoy_watched_key_${key.id}"),
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text(key.label.ifBlank { "Native SegWit" }, color = GlanceText, style = MaterialTheme.typography.titleMedium)
+                            Text("Native SegWit", color = GlanceMuted, style = MaterialTheme.typography.bodySmall)
+                        }
+                        AmountText(key.balanceSats)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun DecoySettingsContent(
+    revealPhrase: Boolean,
+    mnemonic: String?,
+    onBack: () -> Unit,
+    onRevealPhrase: () -> Unit,
+) {
+    Scaffold(containerColor = GlanceBackground, topBar = { BackBar("Settings", onBack) }) { padding ->
+        LazyColumn(
+            Modifier.padding(padding).padding(horizontal = HomeScreenGutter),
+            contentPadding = PaddingValues(top = 8.dp, bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            item {
+                SettingsGroup("Wallet", "decoy_settings_group_wallet") {
+                    SettingsDisclosureRow(
+                        label = "Recovery phrase",
+                        value = if (revealPhrase) "Visible" else null,
+                        onClick = onRevealPhrase,
+                    )
+                    if (revealPhrase) {
+                        SettingsDivider()
+                        Text(
+                            mnemonic ?: "Phrase unavailable",
+                            color = GlanceText,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 14.dp).testTag("duress_recovery_phrase"),
+                        )
+                    }
+                }
+            }
+            item { SettingsGroup("About", "decoy_settings_group_about") { SettingsValueRow("Version", BuildConfig.VERSION_NAME) } }
         }
     }
 }

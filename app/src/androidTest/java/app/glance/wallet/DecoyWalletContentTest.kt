@@ -1,10 +1,12 @@
 package app.glance.wallet
 
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import app.glance.wallet.core.security.AuthenticationCoordinator
 import app.glance.wallet.core.security.ProfileDatabaseManager
 import app.glance.wallet.core.security.SecurityPreferencesStore
@@ -28,12 +30,34 @@ class DecoyWalletContentTest {
     }
 
     @Test
-    fun decoySurfaceShowsOnlyItsStaticBalanceAndNoSecuritySettings() {
+    fun decoySurfaceHasNoManualLockOrSecuritySettings() {
         composeRule.setContent { GlanceTheme { DecoyWalletContent(50_000L, AuthenticationCoordinator(preferences, profiles)) } }
 
         composeRule.onNodeWithTag("decoy_balance").assertTextEquals("50000 sats")
+        composeRule.onAllNodesWithText("Lock now").assertCountEquals(0)
         composeRule.onAllNodesWithText("Scramble PIN keypad").assertCountEquals(0)
         composeRule.onAllNodesWithText("Save decoy balance").assertCountEquals(0)
+    }
+
+    @Test
+    fun decoySettingsUseNeutralGroupsWithoutDuressDisclosure() {
+        composeRule.setContent {
+            GlanceTheme {
+                DecoySettingsContent(
+                    revealPhrase = false,
+                    mnemonic = null,
+                    onBack = {},
+                    onRevealPhrase = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("decoy_settings_group_wallet").assertIsDisplayed()
+        composeRule.onNodeWithTag("decoy_settings_group_about").assertIsDisplayed()
+        composeRule.onNodeWithText("Recovery phrase").assertIsDisplayed()
+        composeRule.onAllNodesWithText("This automatically generated decoy wallet is not intended to receive funds.").assertCountEquals(0)
+        composeRule.onAllNodesWithText("Duress PIN").assertCountEquals(0)
+        composeRule.onAllNodesWithText("Biometric unlock").assertCountEquals(0)
     }
 
     @Test
