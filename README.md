@@ -4,10 +4,10 @@ Glance is an independent, open-source Android Bitcoin wallet for watching single
 
 <p>
   <a href="https://zapstore.dev/apps/app.glance.wallet">
-    <img src="https://img.shields.io/badge/Get%20it%20on-Zapstore-E16D3E?style=for-the-badge&logo=android&logoColor=white" alt="Get it on Zapstore" height="50" />
+    <img src=".github/assets/get-it-on-zapstore.svg" alt="Get it on Zapstore" height="50" />
   </a>
   <a href="https://github.com/tellstone/glance-android">
-    <img src="https://img.shields.io/badge/View%20on-GitHub-181717?style=for-the-badge&logo=github&logoColor=white" alt="View Glance on GitHub" height="50" />
+    <img src=".github/assets/get-it-on-github.png" alt="View Glance on GitHub" height="50" />
   </a>
 </p>
 
