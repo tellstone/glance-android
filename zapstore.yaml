@@ -1,6 +1,6 @@
 # Add the maintainer's public Nostr identity before enabling Zapstore publishing.
 # Zapstore verifies this committed value during the one-time publisher allowlisting step.
-# pubkey: npub1replace_with_maintainer_public_identity
+pubkey: npub1nw0cvw44r65c0m77kshsayc2mk8nac6rnffv66kzfvdl23dmlc7s0r03cl
 repository: https://github.com/tellstone/glance-android
 name: Glance
 summary: A privacy-first, watch-only Bitcoin wallet for Android.
