@@ -64,4 +64,4 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           zspPath="$(go env GOPATH)/bin/zsp"
-          "$zspPath" publish -y --channel beta --commit "$GITHUB_SHA" zapstore.yaml
+          "$zspPath" publish --quiet --channel beta --commit "$GITHUB_SHA" zapstore.yaml
