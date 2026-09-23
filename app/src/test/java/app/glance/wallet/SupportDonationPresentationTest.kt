@@ -11,9 +11,9 @@ class SupportDonationPresentationTest {
     }
 
     @Test
-    fun `each donation method supplies only its own placeholder payload`() {
-        assertEquals("bc1qglanceplaceholderdonation", DonationMethod.ON_CHAIN.payload)
-        assertEquals("lnbc1placeholderdonation", DonationMethod.LIGHTNING.payload)
+    fun `each donation method supplies its configured public payload`() {
+        assertEquals(BuildConfig.DONATION_ON_CHAIN, DonationMethod.ON_CHAIN.payload)
+        assertEquals(BuildConfig.DONATION_LIGHTNING, DonationMethod.LIGHTNING.payload)
     }
 
     @Test
