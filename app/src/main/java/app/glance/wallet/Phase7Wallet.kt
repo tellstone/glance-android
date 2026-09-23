@@ -790,6 +790,7 @@ private fun watchedKeyMetadata(key: KeyBalanceRow): String = when (key.targetTyp
     if (confirmDirect) AlertDialog(onDismissRequest = { confirmDirect = false }, containerColor = GlanceSurface, titleContentColor = GlanceText, textContentColor = GlanceMuted, title = { Text("Turn off Tor?") }, text = { Text("The querying server will see your device's real IP address. Continue only if you accept this privacy risk.") }, confirmButton = { Button(onClick = { confirmDirect = false; onTorEnabled(false) }, shape = GlancePillShape, colors = ButtonDefaults.buttonColors(containerColor = GlanceWarning, contentColor = GlanceText)) { Text("Turn off Tor") } }, dismissButton = { TextButton(onClick = { confirmDirect = false }, colors = ButtonDefaults.textButtonColors(contentColor = GlanceText)) { Text("Keep Tor on") } })
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DeliberatePullToRefresh(
     isRefreshing: Boolean,
@@ -811,7 +812,6 @@ private fun DeliberatePullToRefresh(
             modifier = Modifier.align(Alignment.TopCenter),
             isRefreshing = isRefreshing,
             state = state,
-            maxDistance = WalletSyncPullThreshold,
         )
     }
 }
