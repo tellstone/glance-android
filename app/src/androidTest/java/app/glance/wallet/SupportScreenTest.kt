@@ -26,5 +26,6 @@ class SupportScreenTest {
         composeRule.onNodeWithText("Lightning").performClick()
         composeRule.onNodeWithContentDescription("Lightning donation QR code").assertIsDisplayed()
         composeRule.onNodeWithTag("support_payload").assertIsDisplayed()
+        composeRule.onNodeWithText(BuildConfig.DONATION_LIGHTNING, useUnmergedTree = true).assertIsDisplayed()
     }
 }

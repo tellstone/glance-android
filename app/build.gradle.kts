@@ -41,7 +41,7 @@ val liveEsploraBaseUrl = providers.environmentVariable("GLANCE_LIVE_ESPLORA_BASE
 val configuredDonationOnChain = providers.environmentVariable("GLANCE_DONATION_ON_CHAIN").orNull
     ?: "bc1qglanceplaceholderdonation"
 val configuredDonationLightning = providers.environmentVariable("GLANCE_DONATION_LIGHTNING").orNull
-    ?: "lnbc1placeholderdonation"
+    ?: "glance@wallet.cash"
 val releaseStoreFile = providers.environmentVariable("GLANCE_RELEASE_STORE_FILE").orNull
 val releaseStorePassword = providers.environmentVariable("GLANCE_RELEASE_STORE_PASSWORD").orNull
 val releaseKeyAlias = providers.environmentVariable("GLANCE_RELEASE_KEY_ALIAS").orNull

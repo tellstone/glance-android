@@ -2331,10 +2331,11 @@ internal fun SupportScreen(onBack: () -> Unit) {
                     modifier = Modifier.fillMaxWidth().testTag("support_payload"),
                 )
             } else Text(
-                method.payload.take(10) + "…" + method.payload.takeLast(4),
+                method.payload,
                 color = GlanceMuted,
-                style = MaterialTheme.typography.labelSmall,
-                modifier = Modifier.testTag("support_payload"),
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().testTag("support_payload"),
             )
             Spacer(Modifier.height(supportDonationTightSpacing))
             Button(
