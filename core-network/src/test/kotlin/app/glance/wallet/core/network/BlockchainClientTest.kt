@@ -4,8 +4,8 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
-import mockwebserver3.MockResponse
-import mockwebserver3.MockWebServer
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertSame
@@ -154,13 +154,13 @@ class BlockchainClientTest {
     fun `Esplora client normalizes balance history and UTXOs`() {
         MockWebServer().use { server ->
             server.start()
-            server.enqueue(MockResponse(body = "101"))
-            server.enqueue(MockResponse(body = """{
+            server.enqueue(MockResponse().setBody("101"))
+            server.enqueue(MockResponse().setBody("""{
                 "chain_stats":{"funded_txo_sum":100,"spent_txo_sum":50},
                 "mempool_stats":{"funded_txo_sum":20,"spent_txo_sum":0}
             }"""))
-            server.enqueue(MockResponse(body = """[{"txid":"${"b".repeat(64)}","vout":1,"value":50,"status":{"block_height":100}}]"""))
-            server.enqueue(MockResponse(body = """[{"txid":"${"b".repeat(64)}","status":{"block_height":100}}]"""))
+            server.enqueue(MockResponse().setBody("""[{"txid":"${"b".repeat(64)}","vout":1,"value":50,"status":{"block_height":100}}]"""))
+            server.enqueue(MockResponse().setBody("""[{"txid":"${"b".repeat(64)}","status":{"block_height":100}}]"""))
             val client = EsploraBlockchainClient(server.url("/").toString(), DirectNetworkClientFactorySource)
 
             val snapshot = client.fetchAddress("placeholder")
@@ -176,8 +176,8 @@ class BlockchainClientTest {
         MockWebServer().use { server ->
             server.start()
             val txid = "c".repeat(64)
-            server.enqueue(MockResponse(body = "101"))
-            server.enqueue(MockResponse(body = "[{\"txid\":\"$txid\",\"status\":{\"block_height\":100}}]"))
+            server.enqueue(MockResponse().setBody("101"))
+            server.enqueue(MockResponse().setBody("[{\"txid\":\"$txid\",\"status\":{\"block_height\":100}}]"))
             val client = EsploraBlockchainClient(server.url("/").toString(), DirectNetworkClientFactorySource)
 
             val page = client.fetchAddressHistoryPage("placeholder", "b".repeat(64))
@@ -187,8 +187,8 @@ class BlockchainClientTest {
             assertTrue(page.isComplete)
             server.takeRequest()
             val request = server.takeRequest()
-            assertEquals("/address/placeholder/txs/chain/${"b".repeat(64)}", request.url.encodedPath)
-            assertEquals(null, request.url.encodedQuery)
+            assertEquals("/address/placeholder/txs/chain/${"b".repeat(64)}", request.requestUrl!!.encodedPath)
+            assertEquals(null, request.requestUrl!!.encodedQuery)
         }
     }
 
@@ -200,8 +200,8 @@ class BlockchainClientTest {
             val body = txids.joinToString(prefix = "[", postfix = "]") { txid ->
                 "{\"txid\":\"$txid\",\"status\":{\"block_height\":100}}"
             }
-            server.enqueue(MockResponse(body = "101"))
-            server.enqueue(MockResponse(body = body))
+            server.enqueue(MockResponse().setBody("101"))
+            server.enqueue(MockResponse().setBody(body))
             val client = EsploraBlockchainClient(server.url("/").toString(), DirectNetworkClientFactorySource)
 
             val page = client.fetchAddressHistoryPage("placeholder", null)
@@ -219,8 +219,8 @@ class BlockchainClientTest {
             val body = txids.joinToString(prefix = "[", postfix = "]") { txid ->
                 "{\"txid\":\"$txid\",\"status\":{\"block_height\":100}}"
             }
-            server.enqueue(MockResponse(body = "101"))
-            server.enqueue(MockResponse(body = body))
+            server.enqueue(MockResponse().setBody("101"))
+            server.enqueue(MockResponse().setBody(body))
             val client = EsploraBlockchainClient(server.url("/").toString(), DirectNetworkClientFactorySource)
 
             val page = client.fetchAddressHistoryPage("placeholder", null)

@@ -397,7 +397,7 @@ class ServerManifestRefresher(
             val body = routeSource.current().okHttpClient().newBuilder()
                 .followRedirects(false).followSslRedirects(false).build().newCall(request).execute().use { response ->
                 if (!response.isSuccessful) throw NetworkException("Server directory request failed (HTTP ${response.code})")
-                response.body.string()
+                response.body?.string() ?: throw NetworkException("Server directory response body is empty")
             }
             val manifest = ServerManifestCodec.decodeAndVerify(body, trustedPublicKeyBase64, nowEpochSeconds)
             val current = store.load()

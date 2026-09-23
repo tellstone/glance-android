@@ -444,7 +444,7 @@ class EsploraBlockchainClient(
         val url = baseUrl.resolve(path) ?: throw NetworkException("Invalid request")
         return clientFactorySource.current().okHttpClient().newCall(Request.Builder().url(url).build()).execute().use { response ->
             if (!response.isSuccessful) throw NetworkException("Blockchain request failed (HTTP ${response.code})")
-            response.body.string()
+            response.body?.string() ?: throw NetworkException("Blockchain response body is empty")
         }
     }
 

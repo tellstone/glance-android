@@ -78,7 +78,7 @@ class MempoolFiatPriceClient(
 
     private fun execute(url: okhttp3.HttpUrl): String = clientFactorySource.current().okHttpClient().newCall(Request.Builder().url(url).build()).execute().use { response ->
         if (!response.isSuccessful) throw NetworkException("Fiat provider request failed (HTTP ${response.code})")
-        response.body.string()
+        response.body?.string() ?: throw NetworkException("Fiat provider response body is empty")
     }
 
     companion object {
