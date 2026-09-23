@@ -50,6 +50,8 @@ Run a focused JVM test:
 .\gradlew.bat :app:testDebugUnitTest --tests app.glance.wallet.WalletDetailPresentationTest
 ```
 
+Production Kotlin files target fewer than 500 lines and may not exceed 1,000 lines. `build` and `check` run `verifyKotlinFileLength`; it reports target exceedances and fails on the hard limit.
+
 Connected Android tests require a device or emulator already visible to ADB:
 
 ```powershell
