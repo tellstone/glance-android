@@ -63,8 +63,8 @@ android {
         applicationId = "app.glance.wallet"
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
-        versionCode = 1
-        versionName = providers.gradleProperty("glanceVersionName").orElse("0.1.0-beta.1").get()
+        versionCode = 12
+        versionName = providers.gradleProperty("glanceVersionName").orElse("0.1.0-beta.12").get()
         buildConfigField("String", "DONATION_ON_CHAIN", configuredDonationOnChain.asBuildConfigString())
         buildConfigField("String", "DONATION_LIGHTNING", configuredDonationLightning.asBuildConfigString())
 
