@@ -210,7 +210,7 @@ import kotlin.math.roundToInt
                     onValueChange = {},
                     placeholder = "",
                     readOnly = true,
-                    modifier = Modifier.menuAnchor().fillMaxWidth(),
+                    modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
                 )
                 ExposedDropdownMenu(expanded, { expanded = false }) {

@@ -35,8 +35,8 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.pullToRefresh
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.filled.ContentPaste
@@ -152,7 +152,7 @@ internal fun TransactionPaginationControls(page: Int, totalCount: Int, canAdvanc
                 onClick = { onPageSelected(page - 1) },
                 enabled = page > 0,
                 modifier = Modifier.testTag("transaction_pagination_previous"),
-            ) { Icon(Icons.Filled.ArrowBack, contentDescription = "Previous page", tint = GlanceText, modifier = Modifier.size(18.dp)) }
+            ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Previous page", tint = GlanceText, modifier = Modifier.size(18.dp)) }
             Text(
                 if (page > lastPage) "Load more transactions" else transactionPageRangeText(page, totalCount),
                 color = GlanceMuted,
@@ -164,7 +164,7 @@ internal fun TransactionPaginationControls(page: Int, totalCount: Int, canAdvanc
                 onClick = { onPageSelected(page + 1) },
                 enabled = page < lastPage || canAdvanceToLoadMore,
                 modifier = Modifier.testTag("transaction_pagination_next"),
-            ) { Icon(Icons.Filled.ArrowForward, contentDescription = "Next page", tint = GlanceText, modifier = Modifier.size(18.dp)) }
+            ) { Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Next page", tint = GlanceText, modifier = Modifier.size(18.dp)) }
         }
     }
 }
@@ -246,7 +246,7 @@ internal fun BubbleGrid(utxos: List<UtxoRow>, dustThresholdSats: Long, modifier:
                         center.y + (point.y - center.y - pan.y) / zoom,
                     )
                     return overview.bubbles.asReversed().firstOrNull { bubble ->
-                        kotlin.math.hypot((untransformed.x - bubble.centerX).toDouble(), (untransformed.y - bubble.centerY).toDouble()) <= bubble.radius
+                        kotlin.math.hypot(untransformed.x - bubble.centerX, untransformed.y - bubble.centerY) <= bubble.radius
                     }?.let { byId[it.id] }
                 }
                 fun constrainedPan(nextZoom: Float, gesture: Offset): Offset {
@@ -420,7 +420,6 @@ internal fun ClusteredBitcoinAddress(address: String, accessibilityLabel: String
                 val span = spans[spanIndex++]
                 val (color, weight) = when (span.tone) {
                     AddressTextTone.PRIMARY -> GlanceText to FontWeight.Bold
-                    AddressTextTone.MUTED -> GlanceMuted to FontWeight.Normal
                     AddressTextTone.MANDARIN -> GlanceMandarin to FontWeight.Bold
                 }
                 withStyle(SpanStyle(color = color, fontWeight = weight)) { append(span.text) }

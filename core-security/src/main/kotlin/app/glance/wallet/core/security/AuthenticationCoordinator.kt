@@ -122,16 +122,6 @@ class AuthenticationCoordinator(
         )
     }
 
-    @Deprecated("Synthetic duress balances are no longer supported")
-    suspend fun configureDuress(duressPin: String, @Suppress("UNUSED_PARAMETER") fakeBalanceSats: Long) = configureDuress(duressPin)
-
-    @Deprecated("Synthetic duress balances are no longer supported")
-    suspend fun configureDecoyBalance(@Suppress("UNUSED_PARAMETER") sats: Long): Nothing =
-        throw SecurityException("Synthetic duress balances are no longer supported.")
-
-    @Deprecated("Synthetic duress balances are no longer supported")
-    suspend fun currentDecoyBalance(): Long? = null
-
     suspend fun removeDuressProfile() {
         val session = (mutableState.value as? AuthenticationState.Unlocked)?.session
             ?: throw SecurityException("Unlock the real profile before removing the duress profile.")

@@ -35,7 +35,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.pullToRefresh
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.outlined.CloudOff
@@ -215,7 +215,7 @@ internal fun isHistoricalFiatRouteReady(torEnabled: Boolean, torState: TorState,
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable internal fun BackBar(title: String, back: () -> Unit, actions: @Composable RowScope.() -> Unit = {}) = CenterAlignedTopAppBar(
     title = { Text(title, style = MaterialTheme.typography.labelLarge.copy(fontSize = settingsHeaderTextSize)) },
-    navigationIcon = { IconButton(onClick = back) { Icon(Icons.Filled.ArrowBack, contentDescription = "Navigate back") } },
+    navigationIcon = { IconButton(onClick = back) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Navigate back") } },
     actions = actions,
     colors = TopAppBarDefaults.topAppBarColors(
         containerColor = settingsTopBarColor,

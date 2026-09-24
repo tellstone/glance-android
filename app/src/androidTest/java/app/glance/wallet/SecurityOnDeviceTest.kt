@@ -102,49 +102,23 @@ class SecurityOnDeviceTest {
     }
 
     @Test
-    fun onlyTheRealProfileCanConfigureTheStaticDecoyBalance() = runBlocking {
-        val store = testPreferences("decoy-balance-access")
+    fun duressSetupCreatesAnIsolatedGeneratedWallet() = runBlocking {
+        val store = testPreferences("generated-decoy-wallet")
         store.wipe()
         profiles.deleteAll()
         val authentication = AuthenticationCoordinator(store, profiles)
         authentication.initialize()
 
         authentication.configure(realPin = "123456")
-        authentication.configureDuress("654321", 50_000L)
+        authentication.configureDuress("654321")
         authentication.lock()
         authentication.unlockWithPin("654321", nowMillis = 0L)
 
-        val failure = runCatching { authentication.configureDecoyBalance(100_000L) }.exceptionOrNull()
-        assertNotNull(failure)
-        assertTrue(failure is SecurityException)
-        val decoy = profiles.open(ProfileType.DECOY)
-        try {
-            assertNotNull(decoy.database.decoyProfileDao().findById(ProfileDatabaseManager.DECOY_PROFILE_ID)?.mnemonic)
-        } finally {
-            decoy.database.close()
-            authentication.lock()
-        }
-    }
-
-    @Test
-    fun savingDecoyBalanceTwiceReplacesTheSyntheticSnapshotAtomically() = runBlocking {
-        val store = testPreferences("decoy-balance-repeat")
-        store.wipe()
-        profiles.deleteAll()
-        val authentication = AuthenticationCoordinator(store, profiles)
-        authentication.initialize()
-        authentication.configure(realPin = "123456")
-        authentication.configureDuress("654321", 50_000L)
-        authentication.configureDecoyBalance(125_000L)
-
         val decoy = profiles.open(ProfileType.DECOY).database
         try {
-            val key = requireNotNull(decoy.watchedKeyDao().findById("synthetic-decoy-wallet"))
-            val addresses = decoy.derivedAddressDao().forKey(key.id).first()
-            assertEquals(1, addresses.size)
-            assertNotNull(decoy.decoyProfileDao().findById(ProfileDatabaseManager.DECOY_PROFILE_ID)?.mnemonic)
-            assertEquals(125_000L, decoy.utxoDao().forAddress(addresses.single().id).first().single().valueSats)
-            assertEquals(125_000L, decoy.addressHistoryDao().forAddress(addresses.single().id).first().single().valueSats)
+            val profile = requireNotNull(decoy.decoyProfileDao().findById(ProfileDatabaseManager.DECOY_PROFILE_ID))
+            assertTrue(profile.mnemonic.split(" ").size == 12)
+            assertNotNull(decoy.watchedKeyDao().findById("synthetic-decoy-wallet"))
         } finally {
             decoy.close()
             authentication.lock()
@@ -161,7 +135,7 @@ class SecurityOnDeviceTest {
         authentication.initialize()
 
         authentication.configure(realPin = "123456")
-        authentication.configureDuress("654321", 0L)
+        authentication.configureDuress("654321")
         val realDatabase = (authentication.state.value as AuthenticationState.Unlocked).session.database
 
         authentication.unlockWithPin("654321", nowMillis = 0L)
@@ -221,7 +195,7 @@ class SecurityOnDeviceTest {
         authentication.initialize()
 
         authentication.configure("123456")
-        authentication.configureDuress("654321", 50_000L)
+        authentication.configureDuress("654321")
         authentication.removeDuressProfile()
 
         assertTrue(store.data.first().credentials?.duressPinVerifier == null)
@@ -232,7 +206,7 @@ class SecurityOnDeviceTest {
         assertTrue(authentication.unlockWithPin("123456", 0L) is AuthenticationState.Unlocked)
         authentication.removeDuressProfile()
 
-        authentication.configureDuress("111222", 75_000L)
+        authentication.configureDuress("111222")
         authentication.lock()
         assertTrue(authentication.unlockWithPin("111222", 0L) is AuthenticationState.Unlocked)
         assertNotNull((authentication.state.value as AuthenticationState.Unlocked).session.database.decoyProfileDao().findById(ProfileDatabaseManager.DECOY_PROFILE_ID)?.mnemonic)
@@ -249,7 +223,7 @@ class SecurityOnDeviceTest {
             val authentication = AuthenticationCoordinator(store, profiles)
             authentication.initialize()
             authentication.configure("123456")
-            authentication.configureDuress("654321", 0L)
+            authentication.configureDuress("654321")
             authentication.lock()
             assertThrows(SecurityException::class.java) { runBlocking { authentication.removeDuressProfile() } }
             authentication.unlockWithPin("654321", 0L)
@@ -307,7 +281,7 @@ class SecurityOnDeviceTest {
         val authentication = AuthenticationCoordinator(store, profiles, torStateCleaner = TorStateCleaner { torStateCleared = true })
         authentication.initialize()
         authentication.configure("123456")
-        authentication.configureDuress("654321", 50_000L)
+        authentication.configureDuress("654321")
 
         assertTrue(databaseKeyFile(ProfileDatabaseManager.REAL_DATABASE).isFile)
         assertTrue(databaseKeyFile(ProfileDatabaseManager.DECOY_DATABASE).isFile)

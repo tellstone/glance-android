@@ -137,6 +137,18 @@ android {
     }
     packaging {
         jniLibs.useLegacyPackaging = true
+        // These bundled third-party binaries do not contain strip-compatible symbol tables.
+        // Keep their symbols explicitly so AGP does not report a misleading strip warning.
+        jniLibs.keepDebugSymbols += setOf(
+            "**/libandroidx.graphics.path.so",
+            "**/libdatastore_shared_counter.so",
+            "**/libimage_processing_util_jni.so",
+            "**/libsecp256k1-jni.so",
+            "**/libsqlcipher.so",
+            "**/libsurface_util_jni.so",
+            "**/libtor.so",
+            "**/libtorexec.so",
+        )
     }
 }
 

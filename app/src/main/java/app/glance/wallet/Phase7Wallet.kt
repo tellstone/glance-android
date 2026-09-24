@@ -262,7 +262,7 @@ internal fun utxoOutputText(txid: String, vout: Int): String = "${abbreviateTran
 internal fun receiveActionLabel(isSingleAddress: Boolean): String = if (isSingleAddress) "Address" else "Receive"
 internal fun receiveContextCaption(walletLabel: String, isSingleAddress: Boolean): String =
     "${if (isSingleAddress) "Address" else "Next unused address"} · $walletLabel"
-internal enum class AddressTextTone { PRIMARY, MUTED, MANDARIN }
+internal enum class AddressTextTone { PRIMARY, MANDARIN }
 internal data class AddressDisplaySpan(val text: String, val tone: AddressTextTone)
 
 internal fun addressDisplaySpans(address: String): List<AddressDisplaySpan> {
@@ -270,17 +270,12 @@ internal fun addressDisplaySpans(address: String): List<AddressDisplaySpan> {
     val mandarinGroup = if (address.startsWith("bc1q") || address.startsWith("bc1p")) 1 else 0
     return buildList {
         groups.forEachIndexed { index, group ->
-            val baseTone = when {
-                index == mandarinGroup -> AddressTextTone.MANDARIN
-                index % 2 == 0 -> AddressTextTone.PRIMARY
-                else -> AddressTextTone.MUTED
-            }
-            if (index == groups.lastIndex && group.length > 2) {
-                add(AddressDisplaySpan(group.dropLast(2), baseTone))
-                add(AddressDisplaySpan(group.takeLast(2), AddressTextTone.MANDARIN))
+            val tone = if ((index - mandarinGroup) % 2 == 0) {
+                AddressTextTone.MANDARIN
             } else {
-                add(AddressDisplaySpan(group, if (index == groups.lastIndex) AddressTextTone.MANDARIN else baseTone))
+                AddressTextTone.PRIMARY
             }
+            add(AddressDisplaySpan(group, tone))
         }
     }
 }

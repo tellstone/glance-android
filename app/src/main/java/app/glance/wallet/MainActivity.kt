@@ -415,7 +415,7 @@ private fun DatabaseRecovery(authentication: AuthenticationCoordinator, eraseInc
 
 private fun performPinHaptic(view: android.view.View, context: Context) {
     if (view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)) return
-    val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator ?: return
+    val vibrator = context.getSystemService(Vibrator::class.java) ?: return
     if (!vibrator.hasVibrator()) return
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         vibrator.vibrate(VibrationEffect.createOneShot(12L, VibrationEffect.DEFAULT_AMPLITUDE))
@@ -451,23 +451,19 @@ internal fun keypadRows(scramble: Boolean, unlockLayout: Boolean = true, random:
 }
 
 @Composable internal fun WalletContent(settings: SecurityPreferences, preferences: SecurityPreferencesStore, authentication: AuthenticationCoordinator, torController: TorController) {
-    var eraseConfirmation by remember { mutableStateOf(false) }; var removeDuressConfirmation by remember { mutableStateOf(false) }; var torOffWarning by remember { mutableStateOf(false) }; var setupDuress by remember { mutableStateOf(false) }; var decoyBalance by remember { mutableStateOf("") }; val scope = rememberCoroutineScope(); val activity = LocalActivity.current
-    LaunchedEffect(Unit) { decoyBalance = authentication.currentDecoyBalance()?.toString().orEmpty() }
+    var eraseConfirmation by remember { mutableStateOf(false) }; var removeDuressConfirmation by remember { mutableStateOf(false) }; var torOffWarning by remember { mutableStateOf(false) }; var setupDuress by remember { mutableStateOf(false) }; val scope = rememberCoroutineScope(); val activity = LocalActivity.current
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).testTag("wallet_settings_scroll").padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Glance", style = MaterialTheme.typography.headlineLarge); Text("Wallet unlocked", color = GlanceMuted); HorizontalDivider(); Text("Wallet", style = MaterialTheme.typography.titleMedium)
         SettingSwitch("Scramble PIN keypad", settings.scrambleKeypad) { scope.launch { preferences.update { old -> old.copy(scrambleKeypad = !old.scrambleKeypad) } } }
         SettingSwitch("Haptic PIN feedback", settings.hapticKeypad) { scope.launch { preferences.update { old -> old.copy(hapticKeypad = !old.hapticKeypad) } } }
         SettingSwitch("Biometric unlock", settings.biometricEnabled) { scope.launch { preferences.update { old -> old.copy(biometricEnabled = !old.biometricEnabled) } } }
         Text("Duress profile", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 16.dp))
-        Text("Set the static decoy balance shown after the duress PIN unlocks. This profile remains separate from your wallet.", color = GlanceMuted, style = MaterialTheme.typography.bodySmall)
+        Text("A separate Native SegWit decoy wallet is generated after the duress PIN unlocks. It remains separate from your wallet and syncs through Tor only.", color = GlanceMuted, style = MaterialTheme.typography.bodySmall)
         DuressForensicLimitationNotice()
         if (settings.credentials?.duressPinVerifier == null) {
             Text("Not activated", color = GlanceMuted, modifier = Modifier.testTag("duress_not_activated"))
             Button(onClick = { setupDuress = true }, colors = ButtonDefaults.buttonColors(containerColor = GlanceMandarin), modifier = Modifier.fillMaxWidth()) { Text("Set up duress profile") }
         } else {
-            OutlinedTextField(value = decoyBalance, onValueChange = { decoyBalance = it.filter(Char::isDigit) }, label = { Text("Decoy balance (sats)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            val decoySats = decoyBalance.toLongOrNull()
-            Button(onClick = { decoySats?.let { sats -> scope.launch { authentication.configureDecoyBalance(sats) } } }, enabled = decoySats != null, colors = ButtonDefaults.buttonColors(containerColor = GlanceMandarin, disabledContainerColor = GlanceMuted), modifier = Modifier.fillMaxWidth().testTag("save_decoy_balance")) { Text("Save decoy balance") }
             OutlinedButton(onClick = { removeDuressConfirmation = true }, modifier = Modifier.fillMaxWidth().testTag("remove_duress_profile")) { Text("Remove duress profile") }
         }
         Text("App behavior", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 16.dp))
@@ -483,52 +479,11 @@ internal fun keypadRows(scramble: Boolean, unlockLayout: Boolean = true, random:
     }
     if (eraseConfirmation) AlertDialog(onDismissRequest = { eraseConfirmation = false }, title = { Text("Erase all data?") }, text = { Text("This permanently deletes both encrypted wallet profiles, security settings, local cached data, and cached Tor state. This cannot be undone.") }, confirmButton = { Button(onClick = { scope.launch { authentication.eraseAllData() } }, colors = ButtonDefaults.buttonColors(containerColor = GlanceWarning)) { Text("Erase permanently") } }, dismissButton = { OutlinedButton(onClick = { eraseConfirmation = false }) { Text("Cancel") } })
     if (torOffWarning) AlertDialog(onDismissRequest = { torOffWarning = false }, title = { Text("Turn off Tor?") }, text = { Text("The querying server will see your device's real IP address. Continue only if you accept this privacy risk.") }, confirmButton = { Button(onClick = { torOffWarning = false; scope.launch { preferences.update { it.copy(torEnabled = false) } } }, colors = ButtonDefaults.buttonColors(containerColor = GlanceWarning)) { Text("Turn off Tor") } }, dismissButton = { OutlinedButton(onClick = { torOffWarning = false }) { Text("Keep Tor on") } })
-    if (removeDuressConfirmation) AlertDialog(onDismissRequest = { removeDuressConfirmation = false }, title = { Text("Remove duress profile?") }, text = { Text("This permanently deletes the duress PIN, decoy database, and fake balance. Your real wallet remains unchanged.") }, confirmButton = { Button(onClick = { removeDuressConfirmation = false; scope.launch { authentication.removeDuressProfile(); decoyBalance = "" } }, colors = ButtonDefaults.buttonColors(containerColor = GlanceWarning)) { Text("Remove permanently") } }, dismissButton = { OutlinedButton(onClick = { removeDuressConfirmation = false }) { Text("Cancel") } })
+    if (removeDuressConfirmation) AlertDialog(onDismissRequest = { removeDuressConfirmation = false }, title = { Text("Remove duress profile?") }, text = { Text("This permanently deletes the duress PIN, generated recovery phrase, encrypted decoy database, and wallet history. Your real wallet remains unchanged.") }, confirmButton = { Button(onClick = { removeDuressConfirmation = false; scope.launch { authentication.removeDuressProfile() } }, colors = ButtonDefaults.buttonColors(containerColor = GlanceWarning)) { Text("Remove permanently") } }, dismissButton = { OutlinedButton(onClick = { removeDuressConfirmation = false }) { Text("Cancel") } })
     if (setupDuress) DuressSetupDialog(onDismiss = { setupDuress = false }) { pin ->
         authentication.configureDuress(pin)
         setupDuress = false
     }
-}
-
-@Composable
-private fun LegacyDuressSetupDialog(onDismiss: () -> Unit, onConfigured: suspend (String, Long) -> Unit) {
-    val scope = rememberCoroutineScope()
-    var pin by remember { mutableStateOf("") }
-    var confirmation by remember { mutableStateOf("") }
-    var balance by remember { mutableStateOf("") }
-    var error by remember { mutableStateOf<String?>(null) }
-    var creating by remember { mutableStateOf(false) }
-    AlertDialog(onDismissRequest = { if (!creating) onDismiss() }, title = { Text("Set up duress profile") }, text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Choose a new six-digit PIN and a static decoy balance.", color = GlanceMuted)
-        OutlinedTextField(pin, { pin = it.filter(Char::isDigit).take(6) }, label = { Text("Duress PIN") }, singleLine = true, enabled = !creating, modifier = Modifier.testTag("duress_pin"))
-        OutlinedTextField(confirmation, { confirmation = it.filter(Char::isDigit).take(6) }, label = { Text("Confirm PIN") }, singleLine = true, enabled = !creating, modifier = Modifier.testTag("duress_pin_confirmation"))
-        OutlinedTextField(balance, { balance = it.filter(Char::isDigit) }, label = { Text("Balance (sats)") }, singleLine = true, enabled = !creating, modifier = Modifier.testTag("duress_balance"))
-        if (creating) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            CircularProgressIndicator(modifier = Modifier.size(20.dp), color = GlanceMandarin, strokeWidth = 2.dp)
-            Text("Creating duress profile…", color = GlanceMuted)
-        }
-        error?.let { Text(it, color = GlanceWarning) }
-    } }, confirmButton = { Button(onClick = {
-        val sats = balance.toLongOrNull()
-        when {
-            pin.length != 6 || confirmation != pin -> error = "PINs must match and contain six digits."
-            sats == null -> error = "Enter a valid balance."
-            else -> {
-                creating = true
-                error = null
-                scope.launch {
-                    try {
-                        onConfigured(pin, sats)
-                    } catch (failure: Throwable) {
-                        if (failure is kotlinx.coroutines.CancellationException) throw failure
-                        error = "Unable to create the duress profile. Try again."
-                    } finally {
-                        creating = false
-                    }
-                }
-            }
-        }
-    }, enabled = !creating && pin.length == 6 && confirmation.length == 6 && balance.isNotEmpty(), modifier = Modifier.testTag("duress_create_profile")) { Text("Create profile") } }, dismissButton = { OutlinedButton(onClick = onDismiss, enabled = !creating) { Text("Cancel") } })
 }
 
 @Composable

@@ -283,7 +283,7 @@ internal fun WalletSettingsScreen(database: GlanceDatabase, keyId: String, prefe
                         ) { Text("Save name") }
                         SettingsDivider()
                         ExposedDropdownMenuBox(utxoViewExpanded, { utxoViewExpanded = !utxoViewExpanded }) {
-                            SettingsDisclosureRow("UTXO view", modifier = Modifier.menuAnchor().testTag("wallet_setting_utxo_view"), value = utxoViewLabel(watchedKey!!.utxoView?.let { runCatching { UtxoView.valueOf(it) }.getOrNull() } ?: defaultUtxoView)) { utxoViewExpanded = true }
+                            SettingsDisclosureRow("UTXO view", modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).testTag("wallet_setting_utxo_view"), value = utxoViewLabel(watchedKey!!.utxoView?.let { runCatching { UtxoView.valueOf(it) }.getOrNull() } ?: defaultUtxoView)) { utxoViewExpanded = true }
                             ExposedDropdownMenu(utxoViewExpanded, { utxoViewExpanded = false }) {
                                 UtxoView.entries.forEach { view ->
                                     DropdownMenuItem({ Text(utxoViewLabel(view)) }, {
@@ -386,7 +386,7 @@ internal fun GroupWalletSettingsScreen(database: GlanceDatabase, groupId: String
                         Button(onClick = { scope.launch { database.walletGroupDao().rename(groupId, name.trim()); onBack() } }, shape = watchTargetPrimaryActionShape, colors = ButtonDefaults.buttonColors(containerColor = watchTargetPrimaryActionColor, contentColor = GlanceBackground), modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("Save name") }
                         SettingsDivider()
                         ExposedDropdownMenuBox(viewExpanded, { viewExpanded = !viewExpanded }) {
-                            SettingsDisclosureRow("UTXO view", modifier = Modifier.menuAnchor().testTag("group_wallet_setting_utxo_view"), value = utxoViewLabel(runCatching { UtxoView.valueOf(group!!.utxoView) }.getOrDefault(UtxoView.BUBBLES))) { viewExpanded = true }
+                            SettingsDisclosureRow("UTXO view", modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).testTag("group_wallet_setting_utxo_view"), value = utxoViewLabel(runCatching { UtxoView.valueOf(group!!.utxoView) }.getOrDefault(UtxoView.BUBBLES))) { viewExpanded = true }
                             ExposedDropdownMenu(viewExpanded, { viewExpanded = false }) {
                                 UtxoView.entries.forEach { view -> DropdownMenuItem({ Text(utxoViewLabel(view)) }, { scope.launch { database.walletGroupDao().setUtxoView(groupId, view.name) }; viewExpanded = false }) }
                             }
@@ -405,7 +405,7 @@ internal fun GroupWalletSettingsScreen(database: GlanceDatabase, groupId: String
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text("Formats are chosen when this wallet is imported. They cannot be added later.", color = GlanceMuted, style = MaterialTheme.typography.bodySmall)
                         ExposedDropdownMenuBox(receiveExpanded, { receiveExpanded = !receiveExpanded }) {
-                            SettingsDisclosureRow("Receive format", modifier = Modifier.menuAnchor().testTag("group_wallet_receive_format"), value = group!!.preferredReceiveScriptType.displayName()) { receiveExpanded = true }
+                            SettingsDisclosureRow("Receive format", modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).testTag("group_wallet_receive_format"), value = group!!.preferredReceiveScriptType.displayName()) { receiveExpanded = true }
                             ExposedDropdownMenu(receiveExpanded, { receiveExpanded = false }) {
                                 keys.forEach { key -> DropdownMenuItem({ Text(key.scriptType.displayName()) }, { scope.launch { database.walletGroupDao().setPreferredReceiveScriptType(groupId, key.scriptType) }; receiveExpanded = false }) }
                             }

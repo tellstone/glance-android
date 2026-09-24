@@ -246,12 +246,12 @@ internal fun Phase7SettingsContent(
             if (!biometricAvailable) item { Text("Device biometrics are not available or enrolled.", color = GlanceMuted, style = MaterialTheme.typography.bodySmall) }
             item { SettingsGroup("External settings", "settings_group_external") {
                 ExposedDropdownMenuBox(explorerExpanded, { explorerExpanded = !explorerExpanded }) {
-                    SettingsDisclosureRow("Block explorer", modifier = Modifier.menuAnchor().testTag("setting_block_explorer"), value = explorerName(settings.explorerPreset)) { explorerExpanded = true }
+                    SettingsDisclosureRow("Block explorer", modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).testTag("setting_block_explorer"), value = explorerName(settings.explorerPreset)) { explorerExpanded = true }
                     ExposedDropdownMenu(explorerExpanded, { explorerExpanded = false }) { ExplorerPreset.entries.forEach { preset -> DropdownMenuItem({ Text(explorerName(preset)) }, { scope.launch { preferences.update { it.copy(explorerPreset = preset) } }; explorerExpanded = false }) } }
                 }
                 SettingsDivider()
                 ExposedDropdownMenuBox(currencyExpanded, { currencyExpanded = !currencyExpanded }) {
-                    SettingsDisclosureRow("Currency", modifier = Modifier.menuAnchor().testTag("setting_fiat_currency"), value = settings.fiatCurrency) { currencyExpanded = true }
+                    SettingsDisclosureRow("Currency", modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).testTag("setting_fiat_currency"), value = settings.fiatCurrency) { currencyExpanded = true }
                     ExposedDropdownMenu(currencyExpanded, { currencyExpanded = false }) { FIAT_CURRENCIES.sorted().forEach { currency -> DropdownMenuItem({ Text(currency) }, { scope.launch { preferences.update { it.copy(fiatCurrency = currency) } }; currencyExpanded = false }) } }
                 }
                 SettingsDivider()
@@ -270,31 +270,6 @@ internal fun Phase7SettingsContent(
                 item { Text("Not activated", color = GlanceMuted, modifier = Modifier.testTag("duress_not_activated")) }
                 item { Button(onClick = { setupDuress = true }, shape = settingsActionButtonShape, colors = ButtonDefaults.buttonColors(containerColor = GlanceMandarin, contentColor = GlanceBackground), modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("Set up duress profile") } }
             } else {
-                /* Legacy synthetic-balance controls are intentionally unavailable for real decoy wallets.
-                item { OutlinedTextField(decoyBalance, { decoyBalance = it.filter(Char::isDigit) }, label = { Text("Decoy balance (sats)") }, singleLine = true, modifier = Modifier.fillMaxWidth()) }
-                val decoySats = decoyBalance.toLongOrNull()
-                item {
-                    Button(
-                        onClick = { decoySats?.let { sats -> scope.launch {
-                            decoyBalanceSaving = true
-                            decoyBalanceError = null
-                            try {
-                                authentication.configureDecoyBalance(sats)
-                            } catch (failure: Throwable) {
-                                if (failure is kotlinx.coroutines.CancellationException) throw failure
-                                decoyBalanceError = "Unable to save decoy balance. Try again."
-                            } finally {
-                                decoyBalanceSaving = false
-                            }
-                        } } },
-                        enabled = decoySats != null && !decoyBalanceSaving,
-                        shape = settingsActionButtonShape,
-                        colors = ButtonDefaults.buttonColors(containerColor = GlanceMandarin, contentColor = GlanceBackground, disabledContainerColor = GlanceSurface),
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("save_decoy_balance"),
-                    ) { Text(if (decoyBalanceSaving) "Saving…" else "Save decoy balance") }
-                }
-                decoyBalanceError?.let { error -> item { Text(error, color = GlanceWarning) } }
-                */
                 item { OutlinedButton(onClick = { removeDuressConfirmation = true }, modifier = Modifier.fillMaxWidth().testTag("remove_duress_profile")) { Text("Remove duress profile") } }
             }
             }

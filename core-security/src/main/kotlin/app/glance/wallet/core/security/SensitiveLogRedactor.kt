@@ -17,9 +17,9 @@ object SensitiveLogRedactor {
 
 /** Debug-only tree; release builds deliberately do not plant a logging tree. */
 class RedactingDebugTree : Timber.DebugTree() {
-    override fun log(priority: Int, tag: String?, message: String, throwable: Throwable?) {
+    override fun log(priority: Int, tag: String?, message: String, t: Throwable?) {
         val safeMessage = SensitiveLogRedactor.redact(message)
-        val safeThrowable = throwable?.let { IllegalStateException(SensitiveLogRedactor.redact(it.message.orEmpty())) }
+        val safeThrowable = t?.let { IllegalStateException(SensitiveLogRedactor.redact(it.message.orEmpty())) }
         super.log(priority, tag, safeMessage, safeThrowable)
     }
 }

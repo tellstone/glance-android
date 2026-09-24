@@ -70,21 +70,20 @@ class WalletDetailPresentationTest {
     }
 
     @Test
-    fun addressDisplayUsesPrefixAndTailMandarinAccentsWithoutChangingCase() {
+    fun addressDisplayUsesAlternatingPrimaryAndMandarinAccentsWithoutChangingCase() {
         assertEquals(
             listOf(
                 AddressDisplaySpan("bc1q", AddressTextTone.PRIMARY),
                 AddressDisplaySpan("fp99", AddressTextTone.MANDARIN),
                 AddressDisplaySpan("qf7q", AddressTextTone.PRIMARY),
-                AddressDisplaySpan("8t", AddressTextTone.MUTED),
-                AddressDisplaySpan("rx", AddressTextTone.MANDARIN),
+                AddressDisplaySpan("8trx", AddressTextTone.MANDARIN),
             ),
             addressDisplaySpans("bc1qfp99qf7q8trx"),
         )
         assertEquals(
             listOf(
                 AddressDisplaySpan("1A2b", AddressTextTone.MANDARIN),
-                AddressDisplaySpan("3C4d", AddressTextTone.MUTED),
+                AddressDisplaySpan("3C4d", AddressTextTone.PRIMARY),
                 AddressDisplaySpan("5E", AddressTextTone.MANDARIN),
             ),
             addressDisplaySpans("1A2b3C4d5E"),
