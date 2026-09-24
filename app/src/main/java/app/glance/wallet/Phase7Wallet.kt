@@ -100,6 +100,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.room.withTransaction
+import app.glance.wallet.core.network.ServerRole
 import app.glance.wallet.core.crypto.normalizeWatchedKeyInput
 import app.glance.wallet.core.crypto.parseSingleAddress
 import app.glance.wallet.core.crypto.parseWatchedKey
@@ -130,7 +131,7 @@ import java.text.DateFormat
 import kotlin.math.roundToInt
 
 
-internal object Routes { const val HOME = "home"; const val ADD = "add"; const val SETTINGS = "settings"; const val SUPPORT = "support"; const val DETAIL = "detail/{id}"; const val GROUP_DETAIL = "group-detail/{id}"; const val GROUP_SETTINGS = "group-settings/{id}"; const val GROUP_TRANSACTION = "group-transaction/{groupId}/{txid}"; const val RECEIVE = "receive/{id}"; const val WALLET_SETTINGS = "wallet-settings/{id}"; const val TRANSACTION = "transaction/{historyId}" }
+internal object Routes { const val HOME = "home"; const val ADD = "add"; const val SETTINGS = "settings"; const val SUPPORT = "support"; const val DETAIL = "detail/{id}"; const val GROUP_DETAIL = "group-detail/{id}"; const val GROUP_SETTINGS = "group-settings/{id}"; const val GROUP_TRANSACTION = "group-transaction/{groupId}/{txid}"; const val RECEIVE = "receive/{id}"; const val WALLET_SETTINGS = "wallet-settings/{id}"; const val TRANSACTION = "transaction/{keyId}/{txid}" }
 
 /** Prevent rapid taps on an outgoing back arrow from removing the Home root destination. */
 internal fun canPopPhase7BackStack(hasPreviousDestination: Boolean): Boolean = hasPreviousDestination
@@ -374,7 +375,7 @@ internal fun Phase7Wallet(
                 syncState = keySyncState,
                 onRefresh = { scope.launch { keySyncCoordinator.requestSync(settings.torEnabled, torState, settings.offlineMode) } },
                 onBack = { nav.popPhase7BackStackSafely() },
-                onTransaction = { nav.navigate("transaction/$it") },
+                onTransaction = { txid -> nav.navigate("transaction/$keyId/$txid") },
                 onReceive = { nav.navigate("receive/$keyId") },
                 onWalletSettings = { nav.navigate("wallet-settings/$keyId") },
                 onLoadMoreHistory = {
@@ -443,10 +444,11 @@ internal fun Phase7Wallet(
                 onDeleted = { nav.popBackStack(Routes.HOME, inclusive = false) },
             )
         }
-        composable(Routes.TRANSACTION, arguments = listOf(navArgument("historyId") { type = NavType.LongType })) { entry ->
+        composable(Routes.TRANSACTION, arguments = listOf(navArgument("keyId") { type = NavType.StringType }, navArgument("txid") { type = NavType.StringType })) { entry ->
             TransactionDetailScreen(
                 database = session.database,
-                historyId = requireNotNull(entry.arguments?.getLong("historyId")),
+                keyId = requireNotNull(entry.arguments?.getString("keyId")),
+                txid = requireNotNull(entry.arguments?.getString("txid")),
                 explorerPreset = settings.explorerPreset,
                 onBack = { nav.popPhase7BackStackSafely() },
             )

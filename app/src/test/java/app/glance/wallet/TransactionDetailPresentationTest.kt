@@ -30,4 +30,10 @@ class TransactionDetailPresentationTest {
         assertEquals("https://mempool.space/tx/redacted", explorerUrl(ExplorerPreset.MEMPOOL_SPACE, "redacted"))
         assertEquals("https://blockstream.info/tx/redacted", explorerUrl(ExplorerPreset.BLOCKSTREAM, "redacted"))
     }
+
+    @Test
+    fun transactionRowsUseStoredZeroBasedIndices() {
+        assertEquals("#0", transactionEntryIndexLabel(0))
+        assertEquals("#1", transactionEntryIndexLabel(1))
+    }
 }

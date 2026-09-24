@@ -13,7 +13,7 @@ data class TransactionRow(
     val confirmations: Int,
     val blockHeight: Int?,
     val timestamp: Long?,
-    val address: String,
+    val address: String?,
     val label: String?,
 )
 data class TransactionDetailRow(
@@ -24,9 +24,10 @@ data class TransactionDetailRow(
     val confirmations: Int,
     val blockHeight: Int?,
     val timestamp: Long?,
-    val address: String,
+    val address: String?,
     val label: String?,
 )
+data class TransactionScopeRow(val keyId: String, val txid: String)
 data class UtxoRow(
     val id: Long,
     val txid: String,
@@ -87,7 +88,7 @@ interface WalletScreenDao {
     fun observeKeyBalances(): Flow<List<KeyBalanceRow>>
 
     @Query("""
-        SELECT COUNT(*)
+        SELECT COUNT(DISTINCT h.txid)
         FROM address_history h JOIN derived_addresses a ON a.id = h.addressId
         WHERE a.keyId = :keyId
     """)
@@ -103,26 +104,43 @@ interface WalletScreenDao {
     fun observeSingleAddressHistoryPaging(keyId: String): Flow<TransactionHistoryPagingRow?>
 
     @Query("""
-        SELECT h.id AS historyId, h.addressId, h.txid, h.valueSats, h.confirmations, h.blockHeight, b.timestamp, a.address,
-          l.text AS label
+        SELECT MIN(h.id) AS historyId, MIN(h.addressId) AS addressId, h.txid, SUM(h.valueSats) AS valueSats, MAX(h.confirmations) AS confirmations,
+          MAX(h.blockHeight) AS blockHeight, MAX(b.timestamp) AS timestamp, MIN(a.address) AS address, l.text AS label
         FROM address_history h JOIN derived_addresses a ON a.id = h.addressId
             LEFT JOIN block_timestamp_cache b ON b.blockHeight = h.blockHeight
         LEFT JOIN labels l ON l.referenceType = 'TRANSACTION' AND l.referenceId = h.txid
         WHERE a.keyId = :keyId
-        ORDER BY CASE WHEN h.confirmations = 0 THEN 0 ELSE 1 END,
-          h.blockHeight DESC, h.id DESC
+        GROUP BY h.txid
+        ORDER BY CASE WHEN MAX(h.confirmations) = 0 THEN 0 ELSE 1 END,
+          MAX(h.blockHeight) DESC, h.txid DESC
         LIMIT :limit OFFSET :offset
     """)
     fun observeTransactionPage(keyId: String, limit: Int, offset: Int): Flow<List<TransactionRow>>
 
     @Query("""
-        SELECT h.id AS historyId, h.addressId, h.txid, h.valueSats, h.confirmations, h.blockHeight,
-          b.timestamp, a.address, l.text AS label
+        SELECT MIN(h.id) AS historyId, MIN(h.addressId) AS addressId, h.txid, SUM(h.valueSats) AS valueSats, MAX(h.confirmations) AS confirmations,
+          MAX(h.blockHeight) AS blockHeight, MAX(b.timestamp) AS timestamp, MIN(a.address) AS address, l.text AS label
         FROM address_history h
         JOIN derived_addresses a ON a.id = h.addressId
         LEFT JOIN block_timestamp_cache b ON b.blockHeight = h.blockHeight
         LEFT JOIN labels l ON l.referenceType = 'TRANSACTION' AND l.referenceId = h.txid
-        WHERE h.id = :historyId
+        WHERE a.keyId = :keyId AND h.txid = :txid
+        GROUP BY h.txid
+    """)
+    fun observeTransactionDetail(keyId: String, txid: String): Flow<TransactionDetailRow?>
+
+    @Query("SELECT a.keyId, h.txid FROM address_history h JOIN derived_addresses a ON a.id = h.addressId WHERE h.id = :historyId")
+    fun observeTransactionScopeForHistory(historyId: Long): Flow<TransactionScopeRow?>
+
+    @Query("""
+        SELECT MIN(h.id) AS historyId, MIN(h.addressId) AS addressId, h.txid, SUM(h.valueSats) AS valueSats,
+          MAX(h.confirmations) AS confirmations, MAX(h.blockHeight) AS blockHeight, MAX(b.timestamp) AS timestamp,
+          MIN(a.address) AS address, l.text AS label
+        FROM address_history h JOIN derived_addresses a ON a.id = h.addressId
+        LEFT JOIN block_timestamp_cache b ON b.blockHeight = h.blockHeight
+        LEFT JOIN labels l ON l.referenceType = 'TRANSACTION' AND l.referenceId = h.txid
+        WHERE h.txid = (SELECT txid FROM address_history WHERE id = :historyId)
+        GROUP BY h.txid
     """)
     fun observeTransactionDetail(historyId: Long): Flow<TransactionDetailRow?>
 

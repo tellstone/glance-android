@@ -17,8 +17,11 @@ import app.glance.wallet.core.data.db.LabelReferenceType
 import app.glance.wallet.core.data.db.ScriptType
 import app.glance.wallet.core.data.db.ServerConfigEntity
 import app.glance.wallet.core.data.db.UtxoEntity
+import app.glance.wallet.core.data.db.TransactionInputEntity
+import app.glance.wallet.core.data.db.TransactionOutputEntity
 import app.glance.wallet.core.data.db.WatchedKeyEntity
 import app.glance.wallet.core.data.db.WalletGroupEntity
+import app.glance.wallet.core.data.sync.RoomWalletSyncStore
 import app.glance.wallet.core.data.security.SqlCipherDatabaseFactory
 import app.glance.wallet.core.security.AndroidKeystoreDatabaseKeyProvider
 import app.glance.wallet.core.security.UtxoView
@@ -65,6 +68,54 @@ class PersistenceOnDeviceTest {
         database.watchedKeyDao().deleteById(first.id)
         assertEquals(0, database.derivedAddressDao().forKey(first.id).first().size)
         assertEquals(1, database.derivedAddressDao().forKey(second.id).first().size)
+        database.close()
+    }
+
+    @Test
+    fun transactionIoReplacementIsAtomicAndMissingDetectionIsLimitedToSyncedKeys() = runBlocking {
+        val database = Room.inMemoryDatabaseBuilder(context, GlanceDatabase::class.java).allowMainThreadQueries().build()
+        val first = watchedKey("io-first")
+        val second = watchedKey("io-second")
+        database.watchedKeyDao().upsert(first)
+        database.watchedKeyDao().upsert(second)
+        val firstAddress = database.derivedAddressDao().upsert(address(first.id, 0))
+        val secondAddress = database.derivedAddressDao().upsert(address(second.id, 0))
+        database.addressHistoryDao().upsertAll(listOf(
+            AddressHistoryEntity(addressId = firstAddress, txid = "first-tx", confirmations = 1, blockHeight = 1, valueSats = 1),
+            AddressHistoryEntity(addressId = secondAddress, txid = "second-tx", confirmations = 1, blockHeight = 1, valueSats = 1),
+        ))
+        val store = RoomWalletSyncStore(database)
+
+        assertEquals(listOf("first-tx"), store.transactionsMissingIo(listOf(first.id)))
+        store.replaceTransactionIo(
+            "first-tx",
+            listOf(TransactionInputEntity("first-tx", 0, null, 2, true)),
+            listOf(TransactionOutputEntity("first-tx", 0, "bc1qoutput", 1)),
+        )
+
+        assertEquals(emptyList<String>(), store.transactionsMissingIo(listOf(first.id)))
+        assertEquals(listOf("second-tx"), store.transactionsMissingIo(listOf(second.id)))
+        assertEquals(1, database.transactionDetailDao().observeInputs("first-tx").first().size)
+        assertEquals(1, database.transactionDetailDao().observeOutputs("first-tx").first().size)
+        database.close()
+    }
+
+    @Test
+    fun transactionDetailWatchedAddressLookupIsTargetAndGroupScoped() = runBlocking {
+        val database = Room.inMemoryDatabaseBuilder(context, GlanceDatabase::class.java).allowMainThreadQueries().build()
+        database.walletGroupDao().insert(WalletGroupEntity("group", "Group", 1L, UtxoView.BUBBLES.name, preferredReceiveScriptType = ScriptType.NATIVE_SEGWIT))
+        val target = watchedKey("target")
+        val grouped = watchedKey("grouped").copy(walletGroupId = "group")
+        val otherGrouped = watchedKey("other-grouped").copy(walletGroupId = "other-group")
+        database.watchedKeyDao().upsert(target)
+        database.watchedKeyDao().upsert(grouped)
+        database.watchedKeyDao().upsert(otherGrouped)
+        database.derivedAddressDao().upsert(address(target.id, 0).copy(address = "target-address"))
+        database.derivedAddressDao().upsert(address(grouped.id, 0).copy(address = "grouped-address"))
+        database.derivedAddressDao().upsert(address(otherGrouped.id, 0).copy(address = "other-group-address"))
+
+        assertEquals(listOf("target-address"), database.transactionDetailDao().observeWatchedAddressesForKey(target.id).first())
+        assertEquals(listOf("grouped-address"), database.transactionDetailDao().observeWatchedAddressesForGroup("group").first())
         database.close()
     }
 
@@ -211,6 +262,26 @@ class PersistenceOnDeviceTest {
         val page = database.walletScreenDao().observeGroupTransactionPage("group", limit = 20, offset = 0).first()
         assertEquals(listOf("shared", "older"), page.map { it.txid })
         assertEquals(300L, page.first().valueSats)
+        database.close()
+    }
+
+    @Test
+    fun standaloneTransactionPagesGroupSharedTxidsBeforeCountAndPagination() = runBlocking {
+        val database = Room.inMemoryDatabaseBuilder(context, GlanceDatabase::class.java).allowMainThreadQueries().build()
+        val key = watchedKey("standalone")
+        database.watchedKeyDao().upsert(key)
+        val firstAddress = database.derivedAddressDao().upsert(address(key.id, 0))
+        val secondAddress = database.derivedAddressDao().upsert(address(key.id, 1))
+        database.addressHistoryDao().upsertAll(listOf(
+            AddressHistoryEntity(addressId = firstAddress, txid = "shared", confirmations = 1, blockHeight = 3, valueSats = 100),
+            AddressHistoryEntity(addressId = secondAddress, txid = "shared", confirmations = 1, blockHeight = 3, valueSats = -40),
+            AddressHistoryEntity(addressId = firstAddress, txid = "older", confirmations = 1, blockHeight = 2, valueSats = 25),
+        ))
+        val dao = database.walletScreenDao()
+        assertEquals(2, dao.observeTransactionCount(key.id).first())
+        assertEquals(listOf("shared"), dao.observeTransactionPage(key.id, 1, 0).first().map { it.txid })
+        assertEquals(60L, dao.observeTransactionPage(key.id, 1, 0).first().single().valueSats)
+        assertEquals(listOf("older"), dao.observeTransactionPage(key.id, 1, 1).first().map { it.txid })
         database.close()
     }
 

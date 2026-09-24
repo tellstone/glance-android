@@ -92,6 +92,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.navigation.NavType
 import androidx.navigation.NavController
@@ -131,8 +132,11 @@ import kotlin.math.roundToInt
 
 
 @Composable
-internal fun TransactionDetailScreen(database: GlanceDatabase, historyId: Long, explorerPreset: ExplorerPreset, onBack: () -> Unit) {
-    val transaction by database.walletScreenDao().observeTransactionDetail(historyId).collectAsState(initial = null)
+internal fun TransactionDetailScreen(database: GlanceDatabase, keyId: String, txid: String, explorerPreset: ExplorerPreset, onBack: () -> Unit) {
+    val transaction by database.walletScreenDao().observeTransactionDetail(keyId, txid).collectAsState(initial = null)
+    val inputs by database.transactionDetailDao().observeInputs(txid).collectAsState(emptyList())
+    val outputs by database.transactionDetailDao().observeOutputs(txid).collectAsState(emptyList())
+    val watchedAddresses by database.transactionDetailDao().observeWatchedAddressesForKey(keyId).collectAsState(emptyList())
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var explorerWarning by remember { mutableStateOf(false) }
@@ -159,17 +163,16 @@ internal fun TransactionDetailScreen(database: GlanceDatabase, historyId: Long, 
                     }
                 }
                 item {
-                    TransactionFactsCard(
-                        row = row,
-                        onCopyTransactionId = {
+                    TransactionFactsCard(row = row, onCopyTransactionId = {
                             copy(context, row.txid)
                             copiedField = "Transaction ID copied"
-                        },
-                        onCopyAddress = {
-                            copy(context, row.address)
-                            copiedField = "Address copied"
-                        },
-                    )
+                        })
+                }
+                item { TransactionIoSections(inputs, outputs, watchedAddresses.toSet(), onCopyAddress = { copy(context, it); copiedField = "Address copied" }) }
+                if (inputs.isEmpty() && outputs.isEmpty()) item {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Transaction inputs and outputs are not cached yet. Pull to refresh the wallet to load them.", color = GlanceMuted)
+                    }
                 }
                 copiedField?.let { message ->
                     item { Text(message, color = GlanceMuted, style = MaterialTheme.typography.bodySmall) }
@@ -249,7 +252,6 @@ internal fun TransactionDetailScreen(database: GlanceDatabase, historyId: Long, 
 internal fun TransactionFactsCard(
     row: TransactionDetailRow,
     onCopyTransactionId: () -> Unit,
-    onCopyAddress: () -> Unit,
 ) = Surface(color = GlanceSurface, shape = GlanceCardShape, modifier = Modifier.fillMaxWidth().testTag("transaction_facts_card")) {
     Column {
         TransactionFactRow("Date", row.timestamp?.let(::formatChartTimestamp) ?: if (row.confirmations == 0) "Pending" else "Date unavailable")
@@ -259,10 +261,65 @@ internal fun TransactionFactsCard(
         TransactionFactRow("Block height", row.blockHeight?.toString() ?: "Unavailable")
         TransactionFactDivider()
         TransactionFactRow("Txid", abbreviateTransactionIdentifier(row.txid), onCopyTransactionId, "Copy transaction ID")
-        TransactionFactDivider()
-        TransactionFactRow("Address", abbreviateTransactionIdentifier(row.address), onCopyAddress, "Copy address")
     }
 }
+
+/** Compatibility route for persisted pre-v14 navigation; new routes always use key and txid. */
+@Composable
+internal fun TransactionDetailScreen(database: GlanceDatabase, historyId: Long, explorerPreset: ExplorerPreset, onBack: () -> Unit) {
+    val scope by database.walletScreenDao().observeTransactionScopeForHistory(historyId).collectAsState(null)
+    val current = scope
+    if (current == null) Scaffold(topBar = { BackBar("Transaction", onBack) }) { Text("Transaction unavailable", color = GlanceMuted, modifier = Modifier.padding(it).padding(20.dp)) }
+    else TransactionDetailScreen(database, current.keyId, current.txid, explorerPreset, onBack = onBack)
+}
+
+@Composable
+internal fun TransactionIoSections(inputs: List<TransactionInputEntity>, outputs: List<TransactionOutputEntity>, watchedAddresses: Set<String> = emptySet(), onCopyAddress: (String) -> Unit) {
+    var inputsExpanded by remember { mutableStateOf(false) }
+    var outputsExpanded by remember { mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        TransactionIoSection("Inputs", inputs.size, inputsExpanded, { inputsExpanded = !inputsExpanded }) { inputs.forEach { entry ->
+            TransactionIoEntry(entry.entryIndex, entry.address, entry.isCoinbase, watchedAddresses, onCopyAddress)
+        } }
+        TransactionIoSection("Outputs", outputs.size, outputsExpanded, { outputsExpanded = !outputsExpanded }) { outputs.forEach { entry ->
+            TransactionIoEntry(entry.entryIndex, entry.address, false, watchedAddresses, onCopyAddress)
+        } }
+    }
+}
+
+@Composable private fun TransactionIoSection(title: String, count: Int, expanded: Boolean, onToggle: () -> Unit, content: @Composable () -> Unit) =
+    Surface(color = GlanceSurface, shape = GlanceCardShape, modifier = Modifier.fillMaxWidth().testTag("transaction_${title.lowercase()}")) {
+        Column {
+            Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).clickable(onClick = onToggle).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("$title ($count)", color = GlanceText, modifier = Modifier.weight(1f))
+                Icon(if (expanded) Icons.Filled.ArrowUpward else Icons.Filled.ArrowDownward, contentDescription = if (expanded) "Collapse $title" else "Expand $title", tint = GlanceText)
+            }
+            if (expanded) content()
+        }
+    }
+
+internal fun transactionEntryIndexLabel(index: Int): String = "#$index"
+
+@Composable private fun TransactionIoEntry(index: Int, address: String?, coinbase: Boolean, watchedAddresses: Set<String>, onCopyAddress: (String) -> Unit) =
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
+        Text(transactionEntryIndexLabel(index), color = GlanceMuted, style = MaterialTheme.typography.labelSmall)
+        when {
+            coinbase -> Text("Coinbase input", color = GlanceMuted)
+            address == null -> Text("Address unavailable (script output)", color = GlanceMuted)
+            else -> Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    address,
+                    color = GlanceText,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = if (address in watchedAddresses) FontWeight.Bold else FontWeight.Normal,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f).testTag(if (address in watchedAddresses) "transaction_watched_address" else "transaction_external_address"),
+                )
+                CompactCopyButton(onClick = { onCopyAddress(address) }, description = "Copy address")
+            }
+        }
+    }
 
 @Composable
 internal fun GroupTransactionFactsCard(
@@ -288,9 +345,14 @@ internal fun TransactionFactRow(label: String, value: String, onCopy: (() -> Uni
     Text(label, color = GlanceMuted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
     Text(value, color = GlanceText, style = MaterialTheme.typography.bodyMedium)
     onCopy?.let {
-        IconButton(onClick = it) {
-            Icon(Icons.Filled.ContentCopy, contentDescription = requireNotNull(copyDescription), tint = GlanceText, modifier = Modifier.size(18.dp))
-        }
+        CompactCopyButton(onClick = it, description = requireNotNull(copyDescription))
+    }
+}
+
+@Composable
+private fun CompactCopyButton(onClick: () -> Unit, description: String) {
+    IconButton(onClick = onClick, modifier = Modifier.size(32.dp)) {
+        Icon(Icons.Filled.ContentCopy, contentDescription = description, tint = GlanceText, modifier = Modifier.size(18.dp))
     }
 }
 

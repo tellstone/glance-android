@@ -168,6 +168,34 @@ interface AddressHistoryDao {
 }
 
 @Dao
+interface TransactionDetailDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertInputs(inputs: List<TransactionInputEntity>)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertOutputs(outputs: List<TransactionOutputEntity>)
+    @Query("DELETE FROM transaction_inputs WHERE txid = :txid") suspend fun deleteInputs(txid: String)
+    @Query("DELETE FROM transaction_outputs WHERE txid = :txid") suspend fun deleteOutputs(txid: String)
+    @Query("""
+        SELECT DISTINCT h.txid FROM address_history h
+        INNER JOIN derived_addresses a ON a.id = h.addressId
+        WHERE a.keyId IN (:keyIds)
+        AND NOT EXISTS (SELECT 1 FROM transaction_outputs o WHERE o.txid = h.txid)
+    """)
+    suspend fun missingIoForKeys(keyIds: List<String>): List<String>
+    @Query("SELECT * FROM transaction_inputs WHERE txid = :txid ORDER BY entryIndex") fun observeInputs(txid: String): Flow<List<TransactionInputEntity>>
+    @Query("SELECT * FROM transaction_outputs WHERE txid = :txid ORDER BY entryIndex") fun observeOutputs(txid: String): Flow<List<TransactionOutputEntity>>
+    @Query("SELECT address FROM derived_addresses WHERE keyId = :keyId ORDER BY chain, derivationIndex")
+    fun observeWatchedAddressesForKey(keyId: String): Flow<List<String>>
+    @Query("""
+        SELECT a.address FROM derived_addresses a
+        INNER JOIN watched_keys k ON k.id = a.keyId
+        WHERE k.walletGroupId = :groupId
+        ORDER BY a.keyId, a.chain, a.derivationIndex
+    """)
+    fun observeWatchedAddressesForGroup(groupId: String): Flow<List<String>>
+}
+
+@Dao
 interface UtxoDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(utxos: List<UtxoEntity>)

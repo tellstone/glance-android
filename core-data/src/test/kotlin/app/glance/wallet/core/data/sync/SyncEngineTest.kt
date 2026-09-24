@@ -11,9 +11,12 @@ import app.glance.wallet.core.network.AddressTransaction
 import app.glance.wallet.core.network.ChainDataProvider
 import app.glance.wallet.core.network.FallbackChainDataProvider
 import app.glance.wallet.core.network.NetworkUtxo
+import app.glance.wallet.core.network.NetworkTransactionDetail
+import app.glance.wallet.core.network.TransactionIo
 import fr.acinq.bitcoin.DeterministicWallet
 import fr.acinq.bitcoin.MnemonicCode
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import org.junit.Assert.assertEquals
@@ -21,6 +24,76 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SyncEngineTest {
+
+    @Test
+    fun `explicit sync hydrates distinct missing transaction IO once and reuses it on refresh`() = runBlocking {
+        val store = MemoryStore(listOf(SyncWatchedKey("key", XPUB, ScriptType.NATIVE_SEGWIT)))
+        val chain = FakeChain(setOf(0))
+        val esplora = FakeChain(emptySet())
+        val engine = SyncEngine(store, chain, SyncConfig(gapLimit = 1), transactionIoProvider = esplora)
+
+        engine.syncAll()
+        engine.syncAll()
+
+        assertEquals(listOf("tx-1", "tx-2"), esplora.transactionIoRequests)
+        assertTrue(store.hasCompleteIo("tx-1"))
+        assertTrue(store.hasCompleteIo("tx-2"))
+    }
+
+    @Test
+    fun `failed transaction IO remains missing and is retried without losing synced history`() = runBlocking {
+        val store = MemoryStore(listOf(SyncWatchedKey("key", XPUB, ScriptType.NATIVE_SEGWIT)))
+        val chain = FakeChain(setOf(0))
+        val esplora = FakeChain(emptySet()).apply { failTransactionIoFor += "tx-1" }
+        val engine = SyncEngine(store, chain, SyncConfig(gapLimit = 1), transactionIoProvider = esplora)
+
+        engine.syncAll()
+        assertTrue(!store.hasCompleteIo("tx-1"))
+        assertTrue(store.snapshotFor("key", AddressChain.EXTERNAL).history.isNotEmpty())
+        esplora.failTransactionIoFor.clear()
+        engine.syncAll()
+
+        assertEquals(listOf("tx-1", "tx-2", "tx-1"), esplora.transactionIoRequests)
+        assertTrue(store.hasCompleteIo("tx-1"))
+    }
+
+    @Test
+    fun `loading fixed address history hydrates only newly loaded missing IO`() = runBlocking {
+        val address = "bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu"
+        val store = MemoryStore(listOf(SyncWatchedKey("single", address, null, WatchTargetType.SINGLE_ADDRESS)))
+        store.saveAddress(SyncAddress(keyId = "single", chain = AddressChain.EXTERNAL, index = 0, address = address, historyNextCursor = "oldest", historyComplete = false))
+        val esplora = FakeChain(emptySet(), fixedUsedAddress = address).apply {
+            pagedHistory = AddressHistoryPage(listOf(AddressTransaction("older", 90, 2, 10)), null, true)
+        }
+
+        assertTrue(SyncEngine(store, FakeChain(emptySet()), historyEnricher = esplora).loadMoreSingleAddressHistory("single"))
+
+        assertEquals(listOf("older"), esplora.transactionIoRequests)
+        assertTrue(store.hasCompleteIo("older"))
+    }
+
+    @Test
+    fun `shared transaction across addresses is enriched once`() = runBlocking {
+        val store = MemoryStore(listOf(SyncWatchedKey("key", XPUB, ScriptType.NATIVE_SEGWIT)))
+        val esplora = FakeChain(emptySet())
+
+        SyncEngine(store, FakeChain(setOf(0), transactionId = "shared"), SyncConfig(gapLimit = 1), transactionIoProvider = esplora).syncAll()
+
+        assertEquals(listOf("shared"), esplora.transactionIoRequests)
+    }
+
+    @Test
+    fun `cancellation during transaction IO enrichment stops sync immediately`() = runBlocking {
+        val store = MemoryStore(listOf(SyncWatchedKey("key", XPUB, ScriptType.NATIVE_SEGWIT)))
+        val esplora = FakeChain(emptySet()).apply { cancelTransactionIoFor += "tx-1" }
+
+        val result = runCatching {
+            SyncEngine(store, FakeChain(setOf(0)), SyncConfig(gapLimit = 1), transactionIoProvider = esplora).syncAll()
+        }
+
+        assertTrue(result.exceptionOrNull() is CancellationException)
+        assertEquals(listOf("tx-1"), esplora.transactionIoRequests)
+    }
 
     @Test
     fun `single address sync reconciles only its fixed address without gap derivation`() = runBlocking {
@@ -522,6 +595,7 @@ private class FakeChain(
     scriptType: app.glance.wallet.core.crypto.ScriptType = app.glance.wallet.core.crypto.ScriptType.NATIVE_SEGWIT,
     private val fixedUsedAddress: String? = null,
     private val fixedTransactionCount: Int? = null,
+    private val transactionId: String? = null,
     var tipHeight: Int = 100,
 ) : ChainDataProvider {
     var detailRequests = 0
@@ -539,6 +613,9 @@ private class FakeChain(
     var pagedHistory: AddressHistoryPage? = null
     val pagedHistoryPages = ArrayDeque<AddressHistoryPage>()
     var pagedHistoryRequests = 0
+    val transactionIoRequests = mutableListOf<String>()
+    val failTransactionIoFor = mutableSetOf<String>()
+    val cancelTransactionIoFor = mutableSetOf<String>()
     val statusRequests = mutableListOf<List<String>>()
     private val usedIndexes = usedIndexes.toMutableSet()
     private val usedAddresses = mutableSetOf<String>()
@@ -581,7 +658,7 @@ private class FakeChain(
         val used = addressIndexes[address] in usedIndexes || address == fixedUsedAddress
         return AddressSnapshot(
             balance = if (used) AddressBalance(confirmedPerAddress, unconfirmedPerAddress) else AddressBalance(0, 0),
-            history = if (used) listOf(AddressTransaction("tx-$detailRequests", 100, tipHeight - 99, historyValuePerAddress)) else emptyList(),
+            history = if (used) listOf(AddressTransaction(transactionId ?: "tx-$detailRequests", 100, tipHeight - 99, historyValuePerAddress)) else emptyList(),
             utxos = if (used) List(fixedUtxoCount) { index -> NetworkUtxo("tx-$detailRequests-$index", index, confirmedPerAddress, tipHeight - 99, 100) } else emptyList(),
             tipHeight = tipHeight,
             hasSignedHistoryDeltas = signedHistoryDeltas,
@@ -603,6 +680,13 @@ private class FakeChain(
         }
     }
 
+    override fun fetchTransactionDetail(txid: String): NetworkTransactionDetail {
+        transactionIoRequests += txid
+        if (txid in cancelTransactionIoFor) throw CancellationException("test cancellation")
+        if (txid in failTransactionIoFor) error("test transaction I/O failure")
+        return NetworkTransactionDetail(txid, listOf(TransactionIo(0, "input", 20)), listOf(TransactionIo(0, "output", 10)))
+    }
+
     override fun blockTimestamp(blockHeight: Int): Long {
         timestampRequests++
         if (failTimestamp) error("test timestamp failure")
@@ -621,6 +705,7 @@ private class MemoryStore(keys: List<SyncWatchedKey>) : WalletSyncStore {
     private val addresses = mutableListOf<SyncAddress>()
     private val timestamps = mutableSetOf<Int>()
     private val snapshots = mutableMapOf<Long, AddressSnapshot>()
+    private val completeIo = mutableSetOf<String>()
     var failNextSnapshotWrite = false
 
     override suspend fun watchedKeys(): List<SyncWatchedKey> = keyList.toList()
@@ -678,6 +763,9 @@ private class MemoryStore(keys: List<SyncWatchedKey>) : WalletSyncStore {
     override suspend fun mergeSingleAddressHistoryPage(state: SingleAddressHistoryState, page: AddressHistoryPage): SingleAddressHistoryState {
         val updated = state.address.copy(historyNextCursor = page.nextCursor, historyComplete = page.isComplete)
         saveAddress(updated)
+        val id = requireNotNull(updated.id)
+        val existing = snapshots[id] ?: AddressSnapshot(AddressBalance(0, 0), emptyList(), emptyList(), 0)
+        snapshots[id] = existing.copy(history = (existing.history + page.transactions).distinctBy { it.txid })
         return SingleAddressHistoryState(updated, updated.historyRemoteCount, page.nextCursor, page.isComplete)
     }
     override suspend fun refreshConfirmations(keyIds: List<String>, tipHeight: Int) {
@@ -689,6 +777,13 @@ private class MemoryStore(keys: List<SyncWatchedKey>) : WalletSyncStore {
                 )
             }
         }
+    }
+    override suspend fun transactionsMissingIo(keyIds: List<String>): List<String> = snapshots
+        .filter { (addressId, _) -> addresses.any { it.id == addressId && it.keyId in keyIds } }
+        .values.flatMap { it.history }.map { it.txid }.distinct().filterNot(completeIo::contains)
+    override suspend fun replaceTransactionIo(txid: String, inputs: List<app.glance.wallet.core.data.db.TransactionInputEntity>, outputs: List<app.glance.wallet.core.data.db.TransactionOutputEntity>) {
+        require(outputs.isNotEmpty())
+        completeIo += txid
     }
     override suspend fun hasTimestamp(height: Int): Boolean = height in timestamps
     override suspend fun saveTimestamp(height: Int, timestamp: Long) { timestamps += height }
@@ -715,6 +810,7 @@ private class MemoryStore(keys: List<SyncWatchedKey>) : WalletSyncStore {
     fun singleState(keyId: String): SingleAddressHistoryState? = addresses.singleOrNull { it.keyId == keyId && it.chain == AddressChain.EXTERNAL }?.let {
         SingleAddressHistoryState(it, it.historyRemoteCount, it.historyNextCursor, it.historyComplete)
     }
+    fun hasCompleteIo(txid: String): Boolean = txid in completeIo
 }
 
 private val XPUB: String by lazy {

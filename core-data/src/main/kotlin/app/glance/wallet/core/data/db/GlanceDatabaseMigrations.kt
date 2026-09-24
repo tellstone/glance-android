@@ -82,5 +82,12 @@ object GlanceDatabaseMigrations {
             database.execSQL("CREATE TABLE IF NOT EXISTS `decoy_profiles` (`id` TEXT NOT NULL, `mnemonic` TEXT NOT NULL, `accountExtendedPublicKey` TEXT NOT NULL, PRIMARY KEY(`id`))")
         }
     }
-    val ALL: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+    /** v14 caches complete Esplora transaction I/O for offline transaction details. */
+    val MIGRATION_13_14 = object : Migration(13, 14) {
+        override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+            database.execSQL("CREATE TABLE IF NOT EXISTS `transaction_inputs` (`txid` TEXT NOT NULL, `entryIndex` INTEGER NOT NULL, `address` TEXT, `valueSats` INTEGER NOT NULL, `isCoinbase` INTEGER NOT NULL, PRIMARY KEY(`txid`, `entryIndex`))")
+            database.execSQL("CREATE TABLE IF NOT EXISTS `transaction_outputs` (`txid` TEXT NOT NULL, `entryIndex` INTEGER NOT NULL, `address` TEXT, `valueSats` INTEGER NOT NULL, PRIMARY KEY(`txid`, `entryIndex`))")
+        }
+    }
+    val ALL: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
 }

@@ -131,7 +131,7 @@ import kotlin.math.roundToInt
 
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
-@Composable internal fun KeyDetailScreen(database: GlanceDatabase, keyId: String, defaultUtxoView: UtxoView, syncState: WalletSyncState, onRefresh: () -> Unit, onBack: () -> Unit, onTransaction: (Long) -> Unit, onReceive: () -> Unit, onWalletSettings: (() -> Unit)? = null, onLoadMoreHistory: suspend () -> Boolean = { false }) {
+@Composable internal fun KeyDetailScreen(database: GlanceDatabase, keyId: String, defaultUtxoView: UtxoView, syncState: WalletSyncState, onRefresh: () -> Unit, onBack: () -> Unit, onTransaction: (String) -> Unit, onReceive: () -> Unit, onWalletSettings: (() -> Unit)? = null, onLoadMoreHistory: suspend () -> Boolean = { false }) {
     val scope = rememberCoroutineScope(); val pagerState = rememberPagerState { 2 }; var selectedUtxo by remember { mutableStateOf<UtxoRow?>(null) }; val target by database.watchedKeyDao().observeById(keyId).collectAsState(null); val singleAddress = target?.targetType == WatchTargetType.SINGLE_ADDRESS
     val transactionCount by database.walletScreenDao().observeTransactionCount(keyId).collectAsState(0)
     val historyPaging by database.walletScreenDao().observeSingleAddressHistoryPaging(keyId).collectAsState(null)
@@ -185,7 +185,7 @@ import kotlin.math.roundToInt
                 if (isLoadMoreHistoryPage && txs.isEmpty()) item {
                     Text("Load more transactions to see older history.", color = GlanceMuted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp).testTag("transaction_empty_history_page"))
                 }
-                items(txs, key = { it.historyId }) { tx -> TransactionCard(tx) { onTransaction(tx.historyId) } }
+                items(txs, key = { it.txid }) { tx -> TransactionCard(tx) { onTransaction(tx.txid) } }
                 item {
                     TransactionPaginationControls(
                         page = transactionPage,

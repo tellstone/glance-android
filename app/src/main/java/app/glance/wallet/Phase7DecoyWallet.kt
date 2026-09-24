@@ -147,15 +147,16 @@ internal fun DecoyPhase7Wallet(session: ProfileSession, authentication: Authenti
     val keys by database.walletScreenDao().observeKeyBalances().collectAsState(emptyList())
     val balance by database.utxoDao().observeConfirmedBalance().collectAsState(0L)
     var detail by remember { mutableStateOf(false) }
-    var transactionDetailId by remember { mutableStateOf<Long?>(null) }
+    var transactionDetail by remember { mutableStateOf<Pair<String, String>?>(null) }
     var receiveKeyId by remember { mutableStateOf<String?>(null) }
     var settings by remember { mutableStateOf(false) }
     var revealPhrase by remember { mutableStateOf(false) }
     val mnemonic by produceState<String?>(null, settings, revealPhrase) {
         value = if (settings && revealPhrase) authentication.currentDecoyMnemonic() else null
     }
-    transactionDetailId?.let { historyId ->
-        TransactionDetailScreen(database, historyId, ExplorerPreset.MEMPOOL_SPACE) { transactionDetailId = null }
+    transactionDetail?.let { (keyId, txid) ->
+        // A decoy detail is intentionally cache-only: it must never make a network request.
+        TransactionDetailScreen(database, keyId, txid, ExplorerPreset.MEMPOOL_SPACE, onBack = { transactionDetail = null })
         return
     }
     receiveKeyId?.let { keyId ->
@@ -173,7 +174,7 @@ internal fun DecoyPhase7Wallet(session: ProfileSession, authentication: Authenti
     }
     if (detail) {
         val key = keys.firstOrNull()
-        if (key != null) KeyDetailScreen(database, key.id, UtxoView.BUBBLES, syncState, onRefresh = { scope.launch { syncCoordinator.requestSync(true, torState) } }, onBack = { detail = false }, onTransaction = { transactionDetailId = it }, onReceive = { receiveKeyId = key.id }) else detail = false
+        if (key != null) KeyDetailScreen(database, key.id, UtxoView.BUBBLES, syncState, onRefresh = { scope.launch { syncCoordinator.requestSync(true, torState) } }, onBack = { detail = false }, onTransaction = { transactionDetail = key.id to it }, onReceive = { receiveKeyId = key.id }) else detail = false
         return
     }
     Scaffold(containerColor = GlanceBackground) { padding ->

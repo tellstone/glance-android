@@ -33,6 +33,8 @@ import app.glance.wallet.core.data.db.GlanceDatabase
 import app.glance.wallet.core.data.db.LabelEntity
 import app.glance.wallet.core.data.db.LabelReferenceType
 import app.glance.wallet.core.data.db.ScriptType
+import app.glance.wallet.core.data.db.TransactionInputEntity
+import app.glance.wallet.core.data.db.TransactionOutputEntity
 import app.glance.wallet.core.data.db.UtxoEntity
 import app.glance.wallet.core.data.db.WatchedKeyEntity
 import app.glance.wallet.core.data.db.WatchTargetType
@@ -741,7 +743,7 @@ class WalletContentTest {
         composeRule.onNodeWithTag("transaction_facts_card").assertIsDisplayed()
         composeRule.onNodeWithText("a3f9…02c1").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Copy transaction ID").assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("Copy address").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Copy address").assertDoesNotExist()
         composeRule.onNodeWithTag("save_transaction_label").assertIsNotEnabled()
         composeRule.onNodeWithTag("transaction_label").performTextReplacement("Coffee")
         composeRule.onNodeWithTag("save_transaction_label").performClick()
@@ -804,6 +806,13 @@ class WalletContentTest {
                 AddressHistoryEntity(addressId = legacyAddress, txid = transactionId, confirmations = 3, blockHeight = 800_000, valueSats = 42),
                 AddressHistoryEntity(addressId = nativeAddress, txid = transactionId, confirmations = 3, blockHeight = 800_000, valueSats = 58),
             ))
+            database.transactionDetailDao().upsertInputs(listOf(
+                TransactionInputEntity(transactionId, 0, "1legacygroupaddress", 42, false),
+                TransactionInputEntity(transactionId, 1, "external-input-address-that-is-long-enough-to-ellipsis", 58, false),
+            ))
+            database.transactionDetailDao().upsertOutputs(listOf(
+                TransactionOutputEntity(transactionId, 0, "bc1qnativegroupaddress", 100),
+            ))
             database.blockTimestampCacheDao().upsert(BlockTimestampCacheEntity(800_000, 1_700_000_000L))
         }
         composeRule.setContent {
@@ -813,12 +822,15 @@ class WalletContentTest {
         }
 
         composeRule.onNodeWithTag("group_transaction_facts_card").assertIsDisplayed()
-        composeRule.onNode(hasText("100 sats", substring = true)).assertIsDisplayed()
-        composeRule.onNodeWithText("Legacy").assertIsDisplayed()
-        composeRule.onNodeWithText("Native SegWit").assertIsDisplayed()
-        composeRule.onAllNodesWithContentDescription("Copy address").assertCountEquals(2)
-        composeRule.onNodeWithTag("group_transaction_label").performTextReplacement("Shared label")
-        composeRule.onNodeWithTag("save_group_transaction_label").assertIsEnabled()
+        composeRule.onNodeWithText("Inputs (2)").performClick()
+        composeRule.onNodeWithText("Outputs (1)").performClick()
+        composeRule.onAllNodesWithText("#0").assertCountEquals(2)
+        composeRule.onNodeWithText("#1").assertIsDisplayed()
+        composeRule.onAllNodesWithText("100 sats", substring = false).assertCountEquals(0)
+        composeRule.onAllNodesWithContentDescription("Copy address").assertCountEquals(3)
+        composeRule.onAllNodesWithTag("transaction_watched_address").assertCountEquals(2)
+        composeRule.onAllNodesWithTag("transaction_external_address").assertCountEquals(1)
+        composeRule.onNodeWithText("external-input-address-that-is-long-enough-to-ellipsis").assertIsDisplayed()
     }
 
     @Test

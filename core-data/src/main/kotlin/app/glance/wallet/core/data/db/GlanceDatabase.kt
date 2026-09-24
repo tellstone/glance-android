@@ -12,6 +12,8 @@ import androidx.room.TypeConverters
         WatchedKeyEntity::class,
         DerivedAddressEntity::class,
         AddressHistoryEntity::class,
+        TransactionInputEntity::class,
+        TransactionOutputEntity::class,
         BlockTimestampCacheEntity::class,
         UtxoEntity::class,
         LabelEntity::class,
@@ -20,7 +22,7 @@ import androidx.room.TypeConverters
         DecoyProfileEntity::class,
         WalletGroupEntity::class,
     ],
-    version = 13,
+    version = 14,
     exportSchema = true,
 )
 @TypeConverters(GlanceDatabase.Converters::class)
@@ -29,6 +31,7 @@ abstract class GlanceDatabase : RoomDatabase() {
     abstract fun walletGroupDao(): WalletGroupDao
     abstract fun derivedAddressDao(): DerivedAddressDao
     abstract fun addressHistoryDao(): AddressHistoryDao
+    abstract fun transactionDetailDao(): TransactionDetailDao
     abstract fun utxoDao(): UtxoDao
     abstract fun blockTimestampCacheDao(): BlockTimestampCacheDao
     abstract fun labelDao(): LabelDao

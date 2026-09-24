@@ -106,6 +106,29 @@ data class AddressHistoryEntity(
     val valueSats: Long,
 )
 
+@Entity(
+    tableName = "transaction_inputs",
+    primaryKeys = ["txid", "entryIndex"],
+)
+data class TransactionInputEntity(
+    val txid: String,
+    val entryIndex: Int,
+    val address: String?,
+    val valueSats: Long,
+    val isCoinbase: Boolean,
+)
+
+@Entity(
+    tableName = "transaction_outputs",
+    primaryKeys = ["txid", "entryIndex"],
+)
+data class TransactionOutputEntity(
+    val txid: String,
+    val entryIndex: Int,
+    val address: String?,
+    val valueSats: Long,
+)
+
 @Entity(tableName = "block_timestamp_cache")
 data class BlockTimestampCacheEntity(
     @PrimaryKey val blockHeight: Int,

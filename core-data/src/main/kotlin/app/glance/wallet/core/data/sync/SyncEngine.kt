@@ -10,6 +10,8 @@ import app.glance.wallet.core.data.db.GlanceDatabase
 import app.glance.wallet.core.data.db.ScriptType
 import app.glance.wallet.core.data.db.WatchTargetType
 import app.glance.wallet.core.data.db.UtxoEntity
+import app.glance.wallet.core.data.db.TransactionInputEntity
+import app.glance.wallet.core.data.db.TransactionOutputEntity
 import app.glance.wallet.core.network.AddressSnapshot
 import app.glance.wallet.core.network.AddressHistoryPage
 import app.glance.wallet.core.network.ChainDataProvider
@@ -78,6 +80,10 @@ interface WalletSyncStore {
     suspend fun mergeSingleAddressHistoryPage(state: SingleAddressHistoryState, page: AddressHistoryPage): SingleAddressHistoryState =
         throw UnsupportedOperationException("On-demand history is unavailable")
     suspend fun refreshConfirmations(keyIds: List<String>, tipHeight: Int)
+    /** Distinct history transactions owned by these keys whose complete I/O cache is absent. */
+    suspend fun transactionsMissingIo(keyIds: List<String>): List<String> = emptyList()
+    /** Replaces both sides of one transaction's I/O cache in one atomic write. */
+    suspend fun replaceTransactionIo(txid: String, inputs: List<TransactionInputEntity>, outputs: List<TransactionOutputEntity>) = Unit
     suspend fun hasTimestamp(height: Int): Boolean
     suspend fun saveTimestamp(height: Int, timestamp: Long)
     /** Confirmed history persisted before a recoverable timestamp lookup must be retried later. */
@@ -96,6 +102,8 @@ class SyncEngine(
     private val singleAddressProvider: ChainDataProvider? = historyEnricher,
     /** Fixed-address UTXO snapshots get a fresh Electrum-first route, independent of status fallback. */
     private val singleAddressStateProvider: ChainDataProvider? = null,
+    /** Esplora-backed, pooled provider used for cache-only transaction detail enrichment. */
+    private val transactionIoProvider: ChainDataProvider? = historyEnricher,
 ) {
     fun observeDashboardBalance(): Flow<DashboardBalance> = store.observeDashboardBalance()
 
@@ -116,6 +124,7 @@ class SyncEngine(
                     }
                 }
             }
+            enrichMissingTransactionIo(listOf(keyId))
             return true
         } finally {
             closeProviders()
@@ -147,10 +156,30 @@ class SyncEngine(
             if (keys.isNotEmpty()) {
                 currentCoroutineContext().ensureActive()
                 store.refreshConfirmations(keys.map { it.id }, chainData.tipHeight())
+                enrichMissingTransactionIo(keys.map { it.id })
             }
             return SyncResult(store.dashboardBalance(), refreshed)
         } finally {
             closeProviders()
+        }
+    }
+
+    /** Individual I/O failures are intentionally isolated: the next explicit sync retries only that txid. */
+    private suspend fun enrichMissingTransactionIo(keyIds: List<String>) {
+        val provider = transactionIoProvider ?: return
+        store.transactionsMissingIo(keyIds).forEach { txid ->
+            currentCoroutineContext().ensureActive()
+            try {
+                val detail = provider.fetchTransactionDetail(txid)
+                currentCoroutineContext().ensureActive()
+                store.replaceTransactionIo(
+                    detail.txid,
+                    detail.inputs.map { TransactionInputEntity(detail.txid, it.index, it.address, it.valueSats, it.isCoinbase) },
+                    detail.outputs.map { TransactionOutputEntity(detail.txid, it.index, it.address, it.valueSats) },
+                )
+            } catch (failure: Exception) {
+                if (failure is CancellationException) throw failure
+            }
         }
     }
 
@@ -411,6 +440,7 @@ class SyncEngine(
         if (historyEnricher !== chainData) historyEnricher?.close()
         if (singleAddressProvider !== chainData && singleAddressProvider !== historyEnricher) singleAddressProvider?.close()
         if (singleAddressStateProvider !== chainData && singleAddressStateProvider !== historyEnricher && singleAddressStateProvider !== singleAddressProvider) singleAddressStateProvider?.close()
+        if (transactionIoProvider !== chainData && transactionIoProvider !== historyEnricher && transactionIoProvider !== singleAddressProvider && transactionIoProvider !== singleAddressStateProvider) transactionIoProvider?.close()
     }
 }
 
@@ -528,6 +558,14 @@ class RoomWalletSyncStore(private val database: GlanceDatabase) : WalletSyncStor
     override suspend fun refreshConfirmations(keyIds: List<String>, tipHeight: Int) = database.withTransaction {
         database.addressHistoryDao().refreshConfirmations(keyIds, tipHeight)
         database.utxoDao().refreshConfirmations(keyIds, tipHeight)
+    }
+    override suspend fun transactionsMissingIo(keyIds: List<String>): List<String> =
+        if (keyIds.isEmpty()) emptyList() else database.transactionDetailDao().missingIoForKeys(keyIds)
+    override suspend fun replaceTransactionIo(txid: String, inputs: List<TransactionInputEntity>, outputs: List<TransactionOutputEntity>) = database.withTransaction {
+        database.transactionDetailDao().deleteInputs(txid)
+        database.transactionDetailDao().deleteOutputs(txid)
+        database.transactionDetailDao().upsertInputs(inputs)
+        database.transactionDetailDao().upsertOutputs(outputs)
     }
 
     override suspend fun hasTimestamp(height: Int) = database.blockTimestampCacheDao().find(height) != null

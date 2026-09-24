@@ -214,7 +214,9 @@ internal fun GroupDetailScreen(database: GlanceDatabase, groupId: String, syncSt
 @Composable
 internal fun GroupTransactionDetailScreen(database: GlanceDatabase, groupId: String, txid: String, explorerPreset: ExplorerPreset, onBack: () -> Unit) {
     val transaction by database.walletScreenDao().observeGroupTransactionDetail(groupId, txid).collectAsState(initial = null)
-    val parts by database.walletScreenDao().observeGroupTransactionParts(groupId, txid).collectAsState(emptyList())
+    val inputs by database.transactionDetailDao().observeInputs(txid).collectAsState(emptyList())
+    val outputs by database.transactionDetailDao().observeOutputs(txid).collectAsState(emptyList())
+    val watchedAddresses by database.transactionDetailDao().observeWatchedAddressesForGroup(groupId).collectAsState(emptyList())
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var explorerWarning by remember { mutableStateOf(false) }
@@ -237,26 +239,13 @@ internal fun GroupTransactionDetailScreen(database: GlanceDatabase, groupId: Str
                     }
                 }
                 item { GroupTransactionFactsCard(row, onCopyTransactionId = { copy(context, row.txid); copiedField = "Transaction ID copied" }) }
-                copiedField?.let { message -> item { Text(message, color = GlanceMuted, style = MaterialTheme.typography.bodySmall) } }
-                item {
-                    Text("Addresses by format", color = GlanceMuted, style = MaterialTheme.typography.labelLarge)
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {
-                        parts.forEach { part ->
-                            Surface(color = GlanceSurface, shape = GlanceCardShape, modifier = Modifier.fillMaxWidth()) {
-                                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Column(Modifier.weight(1f)) {
-                                        Text(part.scriptType.displayName())
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(abbreviateTransactionIdentifier(part.address), color = GlanceMuted, style = MaterialTheme.typography.bodySmall)
-                                            IconButton(onClick = { copy(context, part.address); copiedField = "Address copied" }) { Icon(Icons.Filled.ContentCopy, contentDescription = "Copy address", tint = GlanceText, modifier = Modifier.size(18.dp)) }
-                                        }
-                                    }
-                                    AmountText(part.valueSats)
-                                }
-                            }
-                        }
+                item { TransactionIoSections(inputs, outputs, watchedAddresses.toSet()) { address -> copy(context, address); copiedField = "Address copied" } }
+                if (inputs.isEmpty() && outputs.isEmpty()) item {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Transaction inputs and outputs are not cached yet. Pull to refresh the wallet to load them.", color = GlanceMuted)
                     }
                 }
+                copiedField?.let { message -> item { Text(message, color = GlanceMuted, style = MaterialTheme.typography.bodySmall) } }
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         FormFieldLabel("Label")

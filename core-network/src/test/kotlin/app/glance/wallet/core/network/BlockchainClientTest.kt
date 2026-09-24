@@ -21,6 +21,24 @@ import javax.net.ssl.SSLSocketFactory
 
 class BlockchainClientTest {
     @Test
+    fun `Esplora transaction detail preserves ordered inputs outputs and addressless entries`() {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setBody("""{
+              "vin":[{"is_coinbase":true},{"prevout":{"scriptpubkey_address":"bc1qin","value":12}}],
+              "vout":[{"scriptpubkey_address":"bc1qout","value":7},{"scriptpubkey":"6a","value":0}]
+            }"""))
+            server.start()
+            val detail = EsploraBlockchainClient(server.url("/").toString(), DirectNetworkClientFactorySource)
+                .fetchTransactionDetail("redacted")
+            assertEquals(listOf(0, 1), detail.inputs.map { it.index })
+            assertTrue(detail.inputs[0].isCoinbase)
+            assertEquals("bc1qin", detail.inputs[1].address)
+            assertEquals(listOf(0, 1), detail.outputs.map { it.index })
+            assertEquals("bc1qout", detail.outputs[0].address)
+            assertEquals(null, detail.outputs[1].address)
+        }
+    }
+    @Test
     fun `Electrum endpoint is left unresolved for SOCKS DNS resolution`() {
         val address = electrumEndpointAddress("electrum.example", 50002)
 

@@ -435,6 +435,9 @@ class PooledChainDataProvider(
     override fun fetchAddressHistoryPage(address: String, cursor: String?): AddressHistoryPage =
         executeOnActiveServer { it.fetchAddressHistoryPage(address, cursor) }
 
+    override fun fetchTransactionDetail(txid: String): NetworkTransactionDetail =
+        executeOnActiveServer { it.fetchTransactionDetail(txid) }
+
     override fun tipHeight(): Int =
         executeOnActiveServer { it.tipHeight() }
 

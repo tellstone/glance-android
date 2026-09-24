@@ -78,6 +78,18 @@ data class NetworkUtxo(
     val confirmations: Int,
     val blockHeight: Int? = null,
 )
+/** Complete broadcast transaction data used only by the lazy transaction-detail surface. */
+data class TransactionIo(
+    val index: Int,
+    val address: String?,
+    val valueSats: Long,
+    val isCoinbase: Boolean = false,
+)
+data class NetworkTransactionDetail(
+    val txid: String,
+    val inputs: List<TransactionIo>,
+    val outputs: List<TransactionIo>,
+)
 data class AddressSnapshot(
     val balance: AddressBalance,
     val history: List<AddressTransaction>,
@@ -96,6 +108,9 @@ interface ChainDataProvider : AutoCloseable {
     /** Fetches at most one remote history page. Only Esplora supports cursor pagination. */
     fun fetchAddressHistoryPage(address: String, cursor: String?): AddressHistoryPage =
         throw UnsupportedOperationException("Paged address history is unavailable for this protocol")
+    /** Complete transaction I/O is an Esplora-only, lazy detail request. */
+    fun fetchTransactionDetail(txid: String): NetworkTransactionDetail =
+        throw UnsupportedOperationException("Transaction detail is unavailable for this protocol")
     /** Current best-chain height, used to refresh cached confirmation counts cheaply. */
     fun tipHeight(): Int
     fun blockTimestamp(blockHeight: Int): Long
@@ -125,6 +140,9 @@ class FallbackChainDataProvider(
 
     override fun fetchAddressHistoryPage(address: String, cursor: String?): AddressHistoryPage =
         execute { it.fetchAddressHistoryPage(address, cursor) }
+
+    override fun fetchTransactionDetail(txid: String): NetworkTransactionDetail =
+        execute { it.fetchTransactionDetail(txid) }
 
     override fun tipHeight(): Int = execute { it.tipHeight() }
 
@@ -404,6 +422,21 @@ class EsploraBlockchainClient(
             nextCursor = page.lastOrNull()?.requiredString("txid").takeIf { page.size >= ESPLORA_HISTORY_MIN_PAGE_SIZE },
             isComplete = page.size < ESPLORA_HISTORY_MIN_PAGE_SIZE,
         )
+    }
+
+    override fun fetchTransactionDetail(txid: String): NetworkTransactionDetail {
+        val transaction = json("tx/$txid").jsonObject
+        val inputs = transaction["vin"]?.jsonArray.orEmpty().mapIndexed { index, element ->
+            val input = element.jsonObject
+            val coinbase = input["is_coinbase"]?.jsonPrimitive?.content == "true" || input.containsKey("coinbase")
+            val previous = input["prevout"]?.jsonObject
+            TransactionIo(index, previous?.get("scriptpubkey_address")?.jsonPrimitive?.content, previous?.get("value")?.jsonPrimitive?.longOrNull ?: 0L, coinbase)
+        }
+        val outputs = transaction["vout"]?.jsonArray.orEmpty().mapIndexed { index, element ->
+            val output = element.jsonObject
+            TransactionIo(index, output["scriptpubkey_address"]?.jsonPrimitive?.content, output.requiredLong("value"))
+        }
+        return NetworkTransactionDetail(txid, inputs, outputs)
     }
 
     private fun allTransactions(address: String, tip: Int): List<AddressTransaction> {
