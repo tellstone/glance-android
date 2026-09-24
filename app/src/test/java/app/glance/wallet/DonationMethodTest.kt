@@ -1,6 +1,7 @@
 package app.glance.wallet
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class DonationMethodTest {
@@ -11,7 +12,8 @@ class DonationMethodTest {
     }
 
     @Test
-    fun `development Lightning donation fallback matches the short address shape`() {
-        assertEquals("glance@wallet.cash", BuildConfig.DONATION_LIGHTNING)
+    fun `Lightning donation payload is configured for the current build`() {
+        assertFalse(BuildConfig.DONATION_LIGHTNING.isBlank())
+        assertEquals(BuildConfig.DONATION_LIGHTNING, DonationMethod.LIGHTNING.payload)
     }
 }
