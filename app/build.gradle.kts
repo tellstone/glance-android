@@ -34,6 +34,7 @@ abstract class VerifyReleaseConfiguration : DefaultTask() {
 
 val liveAddress = providers.environmentVariable("GLANCE_LIVE_ADDRESS").orNull
 val liveInstrumentationClass = providers.environmentVariable("GLANCE_LIVE_TEST_CLASS").orNull
+val liveMempoolOnion = providers.environmentVariable("GLANCE_LIVE_MEMPOOL_ONION").orNull
 val liveElectrumHost = providers.environmentVariable("GLANCE_LIVE_ELECTRUM_HOST").orNull
 val liveElectrumPort = providers.environmentVariable("GLANCE_LIVE_ELECTRUM_PORT").orNull
 val liveElectrumTls = providers.environmentVariable("GLANCE_LIVE_ELECTRUM_TLS").orNull
@@ -74,8 +75,11 @@ android {
         }
         if (!liveInstrumentationClass.isNullOrBlank()) {
             testInstrumentationRunnerArguments["class"] = liveInstrumentationClass
-        } else {
+        } else if (liveMempoolOnion.isNullOrBlank()) {
             testInstrumentationRunnerArguments["notClass"] = "app.glance.wallet.TorLiveSmokeTest"
+        }
+        if (!liveMempoolOnion.isNullOrBlank()) {
+            testInstrumentationRunnerArguments["glance.live.mempool_onion"] = liveMempoolOnion
         }
         if (!liveElectrumHost.isNullOrBlank()) {
             testInstrumentationRunnerArguments["glance.live.electrum_host"] = liveElectrumHost

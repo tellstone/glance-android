@@ -1,6 +1,8 @@
 package app.glance.wallet.core.network
 
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -52,8 +54,24 @@ class MempoolFiatPriceClient(
                 addQueryParameter("currency", currency.uppercase())
                 addQueryParameter("timestamp", fromEpochSeconds.toString())
             }
-            val price = Json.parseToJsonElement(body).jsonObject["prices"]?.jsonObject
-                ?.get(currency.uppercase())?.jsonPrimitive?.content?.toDoubleOrNull()?.takeIf(::isUsablePrice)
+            val prices = Json.parseToJsonElement(body).jsonObject["prices"]
+            val price = when (prices) {
+                is JsonObject -> prices[currency.uppercase()]?.jsonPrimitive?.content?.toDoubleOrNull()
+                is JsonArray -> prices.mapNotNull { point ->
+                    val values = point.jsonObject
+                    val time = values["time"]?.jsonPrimitive?.content?.toLongOrNull() ?: return@mapNotNull null
+                    val value = values[currency.uppercase()]?.jsonPrimitive?.content?.toDoubleOrNull()
+                        ?.takeIf(::isUsablePrice) ?: return@mapNotNull null
+                    time to value
+                }.sortedBy { it.first }
+                    .lastOrNull { it.first <= fromEpochSeconds }
+                    ?.second
+                    ?: prices.mapNotNull { point ->
+                        point.jsonObject[currency.uppercase()]?.jsonPrimitive?.content?.toDoubleOrNull()
+                            ?.takeIf(::isUsablePrice)
+                    }.firstOrNull()
+                else -> null
+            }?.takeIf(::isUsablePrice)
                 ?: throw NetworkException("Fiat provider returned an invalid historical price")
             return listOf(FiatQuote(provider, currency.uppercase(), price, fromEpochSeconds))
         }

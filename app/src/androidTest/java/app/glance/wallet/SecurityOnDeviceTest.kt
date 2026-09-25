@@ -118,7 +118,7 @@ class SecurityOnDeviceTest {
         try {
             val profile = requireNotNull(decoy.decoyProfileDao().findById(ProfileDatabaseManager.DECOY_PROFILE_ID))
             assertTrue(profile.mnemonic.split(" ").size == 12)
-            assertNotNull(decoy.watchedKeyDao().findById("synthetic-decoy-wallet"))
+            assertNotNull(decoy.watchedKeyDao().findById(ProfileDatabaseManager.DURESS_WALLET_KEY_ID))
         } finally {
             decoy.close()
             authentication.lock()

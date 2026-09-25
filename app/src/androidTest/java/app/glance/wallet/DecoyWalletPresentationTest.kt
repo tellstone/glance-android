@@ -2,12 +2,10 @@ package app.glance.wallet
 
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
-import app.glance.wallet.core.security.AuthenticationCoordinator
 import app.glance.wallet.core.security.ProfileDatabaseManager
 import app.glance.wallet.core.security.SecurityPreferencesStore
 import androidx.test.platform.app.InstrumentationRegistry
@@ -15,7 +13,7 @@ import org.junit.After
 import org.junit.Rule
 import org.junit.Test
 
-class DecoyWalletContentTest {
+class DecoyWalletPresentationTest {
     @get:Rule
     val composeRule = createComposeRule()
 
@@ -27,16 +25,6 @@ class DecoyWalletContentTest {
     fun tearDown() {
         kotlinx.coroutines.runBlocking { preferences.wipe() }
         profiles.deleteAll()
-    }
-
-    @Test
-    fun decoySurfaceHasNoManualLockOrSecuritySettings() {
-        composeRule.setContent { GlanceTheme { DecoyWalletContent(50_000L, AuthenticationCoordinator(preferences, profiles)) } }
-
-        composeRule.onNodeWithTag("decoy_balance").assertTextEquals("50000 sats")
-        composeRule.onAllNodesWithText("Lock now").assertCountEquals(0)
-        composeRule.onAllNodesWithText("Scramble PIN keypad").assertCountEquals(0)
-        composeRule.onAllNodesWithText("Save decoy balance").assertCountEquals(0)
     }
 
     @Test

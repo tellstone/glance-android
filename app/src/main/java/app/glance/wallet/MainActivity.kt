@@ -434,14 +434,6 @@ internal fun keypadRows(scramble: Boolean, unlockLayout: Boolean = true, random:
     )
 }
 
-@Composable internal fun DecoyWalletContent(fakeBalanceSats: Long, authentication: AuthenticationCoordinator) {
-    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Glance", style = MaterialTheme.typography.headlineLarge)
-        Text("Wallet balance", color = GlanceMuted)
-        Text("$fakeBalanceSats sats", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.testTag("decoy_balance"))
-    }
-}
-
 @Composable internal fun DuressForensicLimitationNotice() {
     Text(
         "The separate encrypted decoy database may be detectable during forensic device inspection, even though its contents remain unreadable.",

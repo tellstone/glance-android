@@ -8,7 +8,7 @@ All notable changes to Glance are documented in this file.
 
 - Expanded the watch-only wallet presentation with wallet detail, transaction, UTXO, receive, support, and settings flows.
 - Added transaction input/output details and persisted transaction labels.
-- Added an isolated synthetic decoy-wallet presentation for duress unlock.
+- Added an isolated, independently generated BIP84 watch-only decoy wallet for duress unlock.
 
 ### Improved
 

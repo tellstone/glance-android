@@ -75,7 +75,7 @@ object GlanceDatabaseMigrations {
             db.execSQL("ALTER TABLE derived_addresses ADD COLUMN unspentOutputCount INTEGER")
         }
     }
-    /** Synthetic decoys cannot safely become real wallets, so their legacy metadata is discarded. */
+    /** Historical synthetic-decoy metadata is discarded when upgrading to generated wallets. */
     val MIGRATION_12_13 = object : Migration(12, 13) {
         override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
             db.execSQL("DROP TABLE IF EXISTS decoy_profiles")
